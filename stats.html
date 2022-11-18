@@ -1,0 +1,48 @@
+<head>
+  <style>
+    @font-face {
+      font-family: BlockBuilder3D;
+      src: url("assets/font/BlockBuilder3D.ttf");
+    }
+    button:hover {
+      filter: brightness(50%);
+    }
+    button {
+      font-family: blockbuilder3D;
+      background-color: white;
+      position: fixed;
+      background-image: url("assets/textures/UI/button.png");
+      background-size: 100% 100%;
+    }
+  </style>
+  <title>PIXEL ARENA STATS</title>
+</head>
+<body style="font-family: BlockBuilder3D; font-size: 200%">
+  <h1>Statistics</h1>
+  <h2>Joins:</h2>
+  <localStorage id="joins"></localStorage>
+  <h2>Leaves:</h2>
+  <localStorage id="disconnect"></localStorage>
+  <h2>Kills:</h2>
+  <localStorage id="kills"></localStorage>
+  <h2>Deaths:</h2>
+  <localStorage id="deaths"></localStorage>
+  <br>
+  <br>
+  <a href="index.html"><button><h1>back</h1></button></a>
+  <br>
+  <br>
+  <br>
+  <br>
+  <a href="index.html"><button onclick='e=confirm("Are you sure? This may affect Blockbuilder3D world saves!"); e&&localStorage.clear()'><h1>Erase stats</h1></button></a>
+  <script>
+    onload = function () {
+      for(var i = 0; i < document.body.childNodes.length; i++) {
+        var node = document.body.childNodes[i];
+        if(node.tagName == "LOCALSTORAGE") {
+          node.innerHTML = localStorage[node.id] || 0;
+        }
+      }
+    }
+  </script>
+</body>
