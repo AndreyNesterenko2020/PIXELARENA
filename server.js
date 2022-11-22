@@ -1,10 +1,26 @@
 var WebSocket = require('ws');
 var THREE = require('three');
+var fs = require('fs');
+var https = require('https');
 require('./js/weaponTypes.js');
 require('./js/MATH_UTILITIES.js');
 require('./js/mapLoader.js');
 require('./js/mapTypes.js');
-var server = new WebSocket.Server({port: 7071});
+CERT_KEY = undefined;
+CERT_CHAIN = undefined;
+try {
+  require('./config.js');
+  CERT_KEY = fs.readFileSync(CERT_KEY, 'utf8');
+  CERT_CHAIN = fs.readFileSync(CERT_CHAIN, 'utf8');
+} catch (e) {};
+var httpsServer = undefined;
+var server = undefined;
+if(CERT_KEY) {
+  httpsServer = https.createServer({key: CERT_KEY, cert: CERT_CHAIN}).listen(7071);
+  server = new WebSocket.Server({server: httpsServer});
+} else {
+  server = new WebSocket.Server({port: 7071});
+}
 var userDatabase = {};
 var scene = new THREE.Scene();
 var geometry = new THREE.BoxGeometry();
@@ -13,7 +29,7 @@ var floor = {};
 floor.shape = new THREE.Mesh(geometry);
 floor.shape.scale.set(100,1,100);
 floor.shape.position.y = -1;
-scene.add(floor.shape);
+//scene.add(floor.shape);
 floor.shape.updateMatrixWorld();
 var raycaster = new THREE.Raycaster;
 raycaster.set(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, -1, 0));

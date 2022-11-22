@@ -2,9 +2,13 @@
 <html lang="en">
 <script>
  //CREATE CONFIG WILE NAMED "CONFIG.JS"
- //INSIDE PUT GLOBAL VAIRABLE "CONFIG_SERVER"
+ //INSIDE PUT GLOBAL VARIABLE "CONFIG_SERVER"
  //SET IT TO YOUR WEBSERVER ADDRESS
- //DEFAULTS TO LOCALHOST
+ //INSIDE PUT GLOBAL VARIABLE "CERT_KEY"
+ //SET IT TO YOUR KEY PEM FILE PATH
+ //INSIDE PUT GLOBAL VARIABLE "CERT_CHAIN"
+ //SET IT TO YOUR CHAIN PEM FILE PATH
+ //IF INFO IS MISSING, DEFAULTS TO LOCALHOST
  //PIXEL ARENA
 </script>
 <head>
@@ -51,7 +55,7 @@
       }
       #chat_area {
         overflow-y: scroll;
-        overflow: hidden;
+        overflow-x: hidden;
         height: 90%;
         width: 300px;
         background-color: white;
@@ -182,6 +186,7 @@
     <button style="left: 33.3%; width: 33.3%; position: absolute; top: 40%" onclick="error('None yet!')"><h1>Patchnotes</h1></button>
     <div style="left: 33.3%; position: absolute; top: 61.5%; font-size: 150%">Username:</div>
     <input id="username" style="left: 41.625%; width: 24.975%; position: absolute; top: 60%; font-size: 200%;" placeholder="pick a name" maxlength="16"></input>
+    <h3 id="version" style="position: fixed; left: 4%; top: 90%">version [version]</h3>
   </div>
   <div class="loading">
     <br>
@@ -254,7 +259,10 @@
   var dead = false;
   var killer = "";
   var reloading = false;
+  var version = "1.0.0_alpha2";
   var CONFIG_SERVER = window.CONFIG_SERVER || "localhost";
+  var PROTOCOL = "ws";
+  if(CONFIG_SERVER != "localhost") protocol = "wss";
   function createMaterial(name) {
     if(materials[name]) return;
     materials[name] = new THREE.MeshBasicMaterial({map: textureLoader.load("assets/textures/"+name+".png"), alphaTest: 0.95});
@@ -476,6 +484,7 @@
   }
   function chatMessage (message) {
     document.getElementById("chat_area").innerText += "\n"+message;
+    document.getElementById("chat_area").scrollTo(0,document.getElementById("chat_area").scrollHeight);
   }
   function sendChatMessage (message) {
     ws.send(JSON.stringify({chatMessage: message, username: username}));
@@ -515,7 +524,7 @@
   }
   function initialize() {
     document.getElementsByClassName("loading")[0].style.display = "block";
-    window.ws = new WebSocket('ws://'+CONFIG_SERVER+':7071/ws');
+    window.ws = new WebSocket(PROTOCOL+'://'+CONFIG_SERVER+':7071/ws');
     ws.onerror = function () {
       error("The server that you tried to connect to has gone down.");
       if(!localStorage.disconnect) localStorage.disconnect = "0";
@@ -735,7 +744,7 @@
       PointerLock.unlock();
       setTimeout(function(){document.getElementById("talk").focus()}, 10);
     }
-    if(key.key == "Enter") {
+    if(key.key == "Enter" && document.activeElement == document.getElementById("talk")) {
       PointerLock.lock();
       document.getElementById("talk").blur();
       sendChatMessage(document.getElementById("talk").value);
@@ -804,6 +813,8 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       renderer.setSize( window.innerWidth, window.innerHeight );
   });
+  console.log("PIXEL ARENA "+version);
+  document.getElementById("version").innerHTML = "version "+version;
   ///////////////////////
    loadMap("map_arena")
   ///////////////////////
