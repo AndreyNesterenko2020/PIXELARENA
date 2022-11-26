@@ -10,35 +10,44 @@
     button {
       font-family: blockbuilder3D;
       background-color: white;
-      position: fixed;
+      /*position: fixed;*/
       background-image: url("assets/textures/UI/button.png");
       background-size: 100% 100%;
+    }
+    table {
+      border: solid black 1px;
+      text-align: center;
+    }
+    th {
+      width: 15%
     }
   </style>
   <title>PIXEL ARENA STATS</title>
 </head>
-<body style="font-family: BlockBuilder3D; font-size: 200%">
+<body style="font-family: BlockBuilder3D; font-size: 200%; text-align: center; max-width: 25%">
   <h1>Statistics</h1>
-  <h2>Joins:</h2>
-  <localStorage id="joins"></localStorage>
-  <h2>Leaves:</h2>
-  <localStorage id="disconnect"></localStorage>
-  <h2>Kills:</h2>
-  <localStorage id="kills"></localStorage>
-  <h2>Deaths:</h2>
-  <localStorage id="deaths"></localStorage>
+  <table>
+    <tr>
+      <th><h2>Joins:</h2></th>
+      <th><h2>Leaves:</h2></th>
+      <th><h2>Kills:</h2></th>
+      <th><h2>Deaths:</h2></th>
+    </tr>
+    <tr>
+      <td><localStorage id="joins"></localStorage></td>
+      <td><localStorage id="disconnect"></localStorage></td>
+      <td><localStorage id="kills"></localStorage></td>
+      <td><localStorage id="deaths"></localStorage></td>
+    </tr>
+  </table>
   <br>
   <br>
-  <a href="index.html"><button><h1>back</h1></button></a>
-  <br>
-  <br>
-  <br>
-  <br>
+  <a href="index.html"><button><h1>Back</h1></button></a>
   <a href="index.html"><button onclick='e=confirm("Are you sure? This may affect Blockbuilder3D world saves!"); e&&localStorage.clear()'><h1>Erase stats</h1></button></a>
   <script>
     onload = function () {
-      for(var i = 0; i < document.body.childNodes.length; i++) {
-        var node = document.body.childNodes[i];
+      for(var i = 0; i < document.all.length; i++) {
+        var node = document.all[i];
         if(node.tagName == "LOCALSTORAGE") {
           node.innerHTML = localStorage[node.id] || 0;
         }

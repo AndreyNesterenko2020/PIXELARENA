@@ -1,6 +1,7 @@
 try {
   THREE = require('three');
 } catch (e) {}
+default_map_limits = [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity];
 loadMap = function (NAME, scene_, geometry_) {
   var scene = scene_ || window.scene;
   var geometry = geometry_ || window.geometry;
@@ -9,6 +10,7 @@ loadMap = function (NAME, scene_, geometry_) {
   var map_group = new THREE.Object3D();
   scene.add(map_group);
   GAME_MAP_TYPES[NAME].forEach(function (object) {
+    if(object[0]) return;
     var mesh = new THREE.Mesh(geometry);
     mesh.position.set(object.position.x, object.position.y, object.position.z);
     mesh.rotation.set(object.rotation.x*0.017453292519943295, object.rotation.y*0.017453292519943295, object.rotation.z*0.017453292519943295);
@@ -39,5 +41,7 @@ loadMap = function (NAME, scene_, geometry_) {
       mesh.material = materials["map/"+object.texture];
     }
   });
+  map_group.limits = GAME_MAP_TYPES[NAME][0] || default_map_limits;
+  if(!map_group.limits[0]) map_groups.limits = default_map_limits;
   return map_group;
 }

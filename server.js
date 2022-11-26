@@ -18,13 +18,21 @@ var server = undefined;
 if(CERT_KEY) {
   httpsServer = https.createServer({key: CERT_KEY, cert: CERT_CHAIN}).listen(7071);
   server = new WebSocket.Server({server: httpsServer});
+  try {
+    console.log("found certificates, starting server on "+CONFIG_SERVER);
+  } catch (e) {
+    console.log("found certificates, starting server locally");
+  }
 } else {
   server = new WebSocket.Server({port: 7071});
+  console.log("no certificates found, starting server locally");
 }
 var userDatabase = {};
 var scene = new THREE.Scene();
 var geometry = new THREE.BoxGeometry();
-loadMap("map_arena", scene, geometry);
+//////////////////////////////////////////////////
+var MAP = loadMap("map_arena", scene, geometry);
+//////////////////////////////////////////////////
 var floor = {};
 floor.shape = new THREE.Mesh(geometry);
 floor.shape.scale.set(100,1,100);
@@ -87,7 +95,7 @@ server.on('connection', (ws) => {
   var id = uuidv4();
   var username = "ERRORNAME";
   var metadata = {id, username};
-  userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: 0, oldy: 2, oldz: 0, x: 0, y: 2, z: 0, rx: 0, ry: 0, walking: false, crouch: false, weapon: "NONE", character: createCharacter(id), quaternion: new THREE.Quaternion(0,0,0,1), health: 100, lastShoot: 0, ammo: 0, reloading: false, isDead: false, lastDeath: 0, teleporting: false, lastAttacker: "", weapon_ammo: {}};
+  userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: 0, oldy: 2, oldz: 0, x: 0, y: 2, z: 0, rx: 0, ry: 0, walking: false, crouch: false, weapon: "NONE", character: createCharacter(id), quaternion: new THREE.Quaternion(0,0,0,1), health: 100, lastShoot: 0, ammo: 0, reloading: false, isDead: false, lastDeath: 0, teleporting: false, lastAttacker: "", weapon_ammo: {}, kills: 0};
   ws.user = userDatabase[id];
   var console_logged = false;
   ws.on('message', (data) => {
@@ -158,6 +166,7 @@ server.on('connection', (ws) => {
     }
     if(data.RELOAD_WEAPON) {
       reload(id);
+      return;
     }
     var metadata = ws.user.metadata;
     if(!data.username) return;
@@ -192,7 +201,8 @@ server.on('connection', (ws) => {
       console.log(metadata.username+" connected");
     }
     try {
-      userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: userDatabase[id].x, oldy: userDatabase[id].y, oldz: userDatabase[id].z, x: data.x, y: data.y, z: data.z, rx: data.rx, ry: data.ry, oldusername: data.username, walking: data.walking, crouch: data.crouch, weapon: data.weapon, character: userDatabase[id].character, quaternion: userDatabase[id].quaternion, health: userDatabase[id].health, lastShoot: userDatabase[id].lastShoot, ammo: userDatabase[id].ammo, reloading: userDatabase[id].reloading, isDead: userDatabase[id].isDead, lastDeath: userDatabase[id].lastDeath, teleporting: userDatabase[id].teleporting, lastAttacker: userDatabase[id].lastAttacker, weapon_ammo: userDatabase[id].weapon_ammo};
+      userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: userDatabase[id].x, oldy: userDatabase[id].y, oldz: userDatabase[id].z, x: data.x, y: data.y, z: data.z, rx: data.rx, ry: data.ry, oldusername: data.username, walking: data.walking, crouch: data.crouch, weapon: data.weapon, character: userDatabase[id].character, quaternion: userDatabase[id].quaternion, health: userDatabase[id].health, lastShoot: userDatabase[id].lastShoot, ammo: userDatabase[id].ammo, reloading: userDatabase[id].reloading, isDead: userDatabase[id].isDead, lastDeath: userDatabase[id].lastDeath, teleporting: userDatabase[id].teleporting, lastAttacker: userDatabase[id].lastAttacker, weapon_ammo: userDatabase[id].weapon_ammo, kills: userDatabase[id].kills};
+      ws.send(JSON.stringify({pong: data.ping}));
     } catch (e) {
       disconnect(ws.user, "failed to establish a secure connection");
       return
@@ -201,6 +211,8 @@ server.on('connection', (ws) => {
     data.username = metadata.username;
     data.health = userDatabase[id].health;
     data.ammo = userDatabase[id].ammo;
+    data.kills = userDatabase[id].kills;
+    data.walking = userDatabase[id].walking;
     Object.values(userDatabase).forEach(function (item) {
       data.me = item.metadata.id;
       item.ws.send(JSON.stringify(data))
@@ -217,6 +229,14 @@ server.on('connection', (ws) => {
     if(dist > 0.3 && !userDatabase[id].teleporting) {
       disconnect(ws.user, "detected by anti-cheat");
     };
+    try {
+      if(userDatabase[id].x > MAP.limits[0]) disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].x < MAP.limits[1]) disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].y > MAP.limits[2]) disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].y < MAP.limits[3]) disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].z > MAP.limits[4]) disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].z < MAP.limits[5]) disconnect(ws.user, "detected by anti-cheat");
+    } catch (e) {}
   });
   ws.on("close", () => {
     disconnect(ws.user); 
@@ -234,6 +254,7 @@ function serverTick(){
     if(client.health < 0) client.health = 0;
     if(client.health == 0 && !client.isDead) {
       client.isDead = true;
+      if(client.lastAttacker) userDatabase[client.lastAttacker].kills += 1;
       Object.values(userDatabase).forEach(function (item) {
         item.ws.send(JSON.stringify({death: client.metadata.id, killer: client.lastAttacker}));
       });
@@ -247,7 +268,7 @@ function serverTick(){
       client.character.quaternion.set(rot[0], rot[1], rot[2], rot[3]);
       client.character.updateMatrixWorld();
     } catch (e) {};
-    if(client.lastActivity - Date.now() < -3000){
+    if(client.lastActivity - Date.now() < -10000){
       disconnect(client);
     }
   }

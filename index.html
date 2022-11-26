@@ -19,6 +19,7 @@
     <script src="js/missing.js"></script>
     <script src="js/PointerLockControls.js"></script>
     <script src="js/GLTFLoader.js"></script>
+    <script src="js/text_sprite.js"></script>
     <script src="js/SkeletonUtils.js"></script>
     <script src="js/weaponTypes.js"></script>
     <script src="js/MATH_UTILITIES.js"></script>
@@ -158,9 +159,40 @@
         font-size: 200%;
         display: none;
       }
+      #pause {
+        position: fixed;
+        transition: opacity 0.2s;
+        background-size: 100% 100%;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        background: rgba(112, 112, 112, 0.24);
+        display: none;
+      }
+      #settings {
+        position: fixed;
+        transition: opacity 0.2s;
+        background-size: 100% 100%;
+        z-index: 3;
+        left: 40%;
+        width: 20%;
+        height: 60%;
+        top: 20%;
+        display: none;
+        border: solid black 4px;
+        background: white;
+        text-align: center;
+        font-size: 200%;
+      }
+      #ping_text {
+        position: fixed;
+        top: 5%;
+        left: 90%;
+        display: none;
+      }
     </style>
 </head>
-<body style="font-family: BlockBuilder3D;">
+<body style="font-family: BlockBuilder3D; position: fixed">
   <template id="cursor">
       <svg viewBox="0 0 16.3 24.7" class="cursor">
           <path stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" d="M15.6 15.6L.6.6v20.5l4.6-4.5 3.2 7.5 3.4-1.3-3-7.2z" />
@@ -170,20 +202,23 @@
   <div class="health"></div>
   <div class="health_content" style=""><h1>100</h1></div>
   <div class="health_content" style="background-color: white; z-index: 0"></div>
-  <img style="pointer-events: none; position: absolute; left: 50%; top: 50%" id="crosshair" src="assets/textures/UI/crosshair.png"></img>
-  <img style="pointer-events: none; position: fixed; left: 50%; top: 50%; display: none" id="hitmarker" src="assets/textures/UI/hitmarker.png"></img>
+  <img style="pointer-events: none; position: fixed; left: 49.8%; top: 47.5%" id="crosshair" src="assets/textures/UI/crosshair.png"></img>
+  <img style="pointer-events: none; position: fixed; left: 49.8%; top: 47.5%; display: none" id="hitmarker" src="assets/textures/UI/hitmarker.png"></img>
   <div id="ammo"><h1 style="float: left" id="ammo_text">-1</h1><img src="assets/textures/UI/ammo.png" style="float: right;"></img></div>
   <div class="instructions"></div>
   <h1 id="killedBy">killed by [name]</h1>
   <div class="death_overlay"></div>
   <div id="leaderboard"></div>
+  <div id="ping_text">-1 ms ping</div>
+  <div id="settings"><h1>Settings</h1><br><input type="checkbox" id="third_person">Third person<br><input type="checkbox" id="nametags">Show nametags<br><input type="checkbox" id="ping">Show ping<br><input type="checkbox" id="sounds">Sounds<br>FOV: <input type="number" id="fov"><br><button style="position: unset"; onclick="document.getElementById('settings').style.display = 'none';"><h1>Close</h1></button></div>
+  <div id="pause"><h1 style="text-align: center;">Pixel Arena</h1><br><h2 style="text-align: center;">Game paused</h2><br><button style="left: 40%; width: 20%; top: 25%" onclick="PointerLock.lock();paused=false;"><h1>resume</h1></button><button style="left: 40%; width: 20%; top: 35%" onclick="document.getElementById('settings').style.display='block';document.getElementById('fov').value=camera.fov;"><h1>settings</h1></button><button style="left: 40%; width: 20%; top: 45%" onclick="if(!localStorage.disconnect) localStorage.disconnect = '0';localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1); location.reload()"><h1>disconnect</h1></button></div> 
   <div class="game_menu">
     <br>
     <h1>Pixel Arena</h1>
     <br>
     <button style="left: 33.3%; width: 33.3%; position: absolute; top: 20%" onclick=initialize()><h1>Join game</h1></button>
     <button style="left: 33.3%; width: 33.3%; position: absolute; top: 30%" onclick=location.href="stats.html"><h1>Statistics</h1></button>
-    <button style="left: 33.3%; width: 33.3%; position: absolute; top: 40%" onclick="error('None yet!')"><h1>Patchnotes</h1></button>
+    <button style="left: 33.3%; width: 33.3%; position: absolute; top: 40%" onclick="showPatchnotes();"><h1>Patchnotes</h1></button>
     <div style="left: 33.3%; position: absolute; top: 61.5%; font-size: 150%">Username:</div>
     <input id="username" style="left: 41.625%; width: 24.975%; position: absolute; top: 60%; font-size: 200%;" placeholder="pick a name" maxlength="16"></input>
     <h3 id="version" style="position: fixed; left: 4%; top: 90%">version [version]</h3>
@@ -232,6 +267,8 @@
   var loader = new THREE.GLTFLoader();
   var preload = {};
   var mixers = [];
+  var listener = new THREE.AudioListener();
+  camera.add(listener);
   clock = new THREE.Clock();
   document.addEventListener('contextmenu', event => event.preventDefault());
   camera.position.set(0, 16, 16);
@@ -259,7 +296,12 @@
   var dead = false;
   var killer = "";
   var reloading = false;
-  var version = "1.0.0_alpha2_01";
+  var thirdPerson = false;
+  var thirdPersonZoom = 0.75;
+  var player_height = 4;
+  var canPause = false;
+  var ping = 0;
+  var version = "1.0.0_alpha3";
   var CONFIG_SERVER = window.CONFIG_SERVER || "localhost";
   var PROTOCOL = "ws";
   if(CONFIG_SERVER != "localhost") PROTOCOL = "wss";
@@ -290,6 +332,10 @@
       this.collision.addEventListener("collide", function () {this_.jumping = false});
       this.weapon_bone = this.character.children[0].children[0].children[0].children[2].children[0].children[0].children[0];
       this.weapon = undefined;
+      this.nameTag = makeTextSprite(username, {fontface:"BlockBuilder3D"});
+      this.nameTag.position.set(0, 5, 0);
+      this.nameTag.material.map.offset.x = -0.36;
+      scene.add(this.nameTag);
       scene.add(this.weapon);
       world.add(this.collision);
       scene.add(this.character);
@@ -299,6 +345,8 @@
       this.jumping = false;
       this.username = username;
       this.kills = 0;
+      this.walking = false;
+      this.walkSounds = {};
       if(this.id == me) {
         this.isMe = true;
       } 
@@ -330,7 +378,8 @@
     }
     delete() {
       this.character.removeFromParent();
-      this.weapon.removeFromParent();
+      if(this.weapon) this.weapon.removeFromParent();
+      this.nameTag.removeFromParent();
       delete(players[this.id]);
     }
   }
@@ -347,7 +396,7 @@
       decals.shift();
     }
     decal.scale.set(0.25, 0, 0.25);
-    decal.position.set(position.x+(normal.x/100), position.y+(normal.y/100), position.z+(normal.y/100));
+    decal.position.set(position.x+(normal.x/100), position.y+(normal.y/100), position.z+(normal.z/100));
     decal.rotation.set(rotation.x, rotation.y, rotation.z);
     decals.push(decal);
     return decal;
@@ -366,15 +415,22 @@
     requestAnimationFrame(mainLoop);
     if(!paused) {
       renderer.render(scene, camera);
+      document.getElementById("pause").style.display = "none";
+    } else {
+      document.getElementById("pause").style.display = "block";
     }
+    paused = !PointerLock.isLocked && canPause && document.activeElement != document.getElementById("talk") && !dead;
     document.getElementsByClassName("loading")[0].style.display = "none";
     document.getElementsByClassName("chat")[0].style.display = "block";
     document.getElementsByClassName("instructions")[0].style.display = "block";
     document.getElementById("leaderboard").style.display = "block";
     username = document.getElementById("username").value;
-    if(ws.readyState == 1) ws.send(JSON.stringify({x: position.x, y: position.y, z: position.z, rx: rotation.x, ry: rotation.y, username: username, walking: walking, crouch: crouch, weapon: current_weapon}));
-    var highest_kills = 0;
-    var highest_player = null;
+    camera.updateProjectionMatrix();
+    if(ws.readyState == 1) ws.send(JSON.stringify({x: position.x, y: position.y, z: position.z, rx: rotation.x, ry: rotation.y, username: username, walking: walking, crouch: crouch, weapon: current_weapon, ping: Date.now()}));
+    if(!camera.fov) camera.fov = 100;
+    var list = Object.values(players).sort(function (a,b){
+        return b.kills - a.kills; 
+    });
     Object.values(players).forEach(function (player) {
       v = new THREE.Vector3();
       q = new THREE.Quaternion();
@@ -389,16 +445,15 @@
         player.weapon.position.copy(v);
         player.weapon.quaternion.copy(q);
       }
-      if(player.kills > highest_kills) {
-        highest_kills = player.kills;
-        highest_player = player.id;
-      }
     });
     try {
-      if(highest_kills == 0) {
+      if(list[0].kills == 0) {
         document.getElementById("leaderboard").innerHTML = "";
       } else {
-        document.getElementById("leaderboard").innerHTML = "Most kills: "+players[highest_player].username+" with "+highest_kills;
+        document.getElementById("leaderboard").innerHTML = "<h3>LEADERBOARD</h3>";
+        document.getElementById("leaderboard").innerHTML += "<b>1</b>. "+list[0].username+" with "+list[0].kills+" kills<br>";
+        if(list[1].kills) document.getElementById("leaderboard").innerHTML += "<b>2</b>. "+list[1].username+" with "+list[1].kills+" kills<br>";
+        if(list[2].kills) document.getElementById("leaderboard").innerHTML += "<b>3</b>. "+list[2].username+" with "+list[2].kills+" kills<br>";
       }
     } catch (e) {}
     if(killer != "" && dead && players[killer]) {
@@ -433,8 +488,9 @@
       position.z = players[me].collision.position.z
       rotation.x = quaternionEuler(camera.quaternion)[0];
       rotation.y = quaternionEuler(camera.quaternion)[1];
-      camera.position.set(players[me].collision.position.x+camera_damage, players[me].collision.position.y+players[me].collision.shapes[0].halfExtents.y/1.3+(Math.sin(camera_bobbing)/10)+camera_damage, players[me].collision.position.z+camera_damage);
-      var temporaryEuler0 = eulerQuaternion([quaternionEuler(camera.quaternion)[0], quaternionEuler(camera.quaternion)[1], 0]);
+      camera.position.set(players[me].collision.position.x+camera_damage, players[me].collision.position.y+player_height/2.6+(Math.sin(camera_bobbing)/10)+camera_damage, players[me].collision.position.z+camera_damage);
+      if(thirdPerson) camera.position.addScaledVector(new THREE.Vector3(0, 0, thirdPersonZoom).applyQuaternion(camera.quaternion), 5)
+      var temporaryEuler0 = eulerQuaternion([0, quaternionEuler(camera.quaternion)[1], 0]);
       var temporaryEuler = new THREE.Vector3((players[me].movement[3] - players[me].movement[2]) * speed, 0, (players[me].movement[1] - players[me].movement[0]) * speed).applyQuaternion(new THREE.Quaternion(temporaryEuler0[0], temporaryEuler0[1], temporaryEuler0[2], temporaryEuler0[3]));
       players[me].collision.velocity = new CANNON.Vec3(temporaryEuler.x, players[me].collision.velocity.y, temporaryEuler.z);
       if(players[me].jumping) {
@@ -444,22 +500,42 @@
       }
       if(!dead) {
         if(crouch) {
-          players[me].collision.shapes[0].halfExtents.y = 1.3;
+          player_height = 2.6;
         } else {
-          players[me].collision.shapes[0].halfExtents.y = 2;
+          player_height = 4;
         }
       } else {
         players[me].collision.shapes[0].halfExtents.y = 0.7;
+        player_height = 1.4;
         players[me].updateCollision();
         PointerLock.unlock();
         try {
           camera.lookAt(players[killer].character.position.x, players[killer].character.position.y, players[killer].character.position.z);
         } catch (e) {};
       }
-      walking = players[me].movement[0] || players[me].movement[1] || players[me].movement[2] || players[me].movement[3];
+      walking = !players[me].jumping && players[me].movement[0] || players[me].movement[1] || players[me].movement[2] || players[me].movement[3];
       if(walking) {
         camera_bobbing += 0.1;
       }
+      if(dead || paused) {
+        players[me].movement[0] = 0;
+        players[me].movement[1] = 0;
+        players[me].movement[2] = 0;
+        players[me].movement[3] = 0;
+      }
+      if(players[me].collision.shapes[0].halfExtents.y == 0.7 && !dead) {
+        players[me].collision.shapes[0].halfExtents.y = 2;
+      };
+      players[me].updateCollision();
+ 
+      var rot_01 = eulerQuaternion([0, 0, rotation.x]);
+      var rot2_01 = eulerQuaternion([0, rotation.y+90, 0]);
+      //head rotation
+      if(players[me].health > 0) players[me].character.children[0].children[0].children[0].children[0].quaternion.set(rot_01[0], rot_01[1], rot_01[2], rot_01[3]);
+      //body rotation
+      if(players[me].health > 0) players[me].character.quaternion.set(rot2_01[0], rot2_01[1], rot2_01[2], rot2_01[3]);
+      //body position
+      players[me].character.position.set(position.x, position.y, position.z);
       
       //my gravity
       players[me].collision.velocity.y -= 0.3;
@@ -480,13 +556,16 @@
     message.style.backgroundSize = "100% 100%";
     message.style.border = "solid black 2px";
     message.innerHTML = "<h1>Error</h1>"+errormessage+"<button style='position:absolute;top:80%; height:20%; width: 20%; left: 40%' onclick=location.reload()><h2>close</h2></button>";
+    canPause = false;
     document.body.appendChild(message);
+    return message;
   }
   function chatMessage (message) {
     document.getElementById("chat_area").innerText += "\n"+message;
     document.getElementById("chat_area").scrollTo(0,document.getElementById("chat_area").scrollHeight);
   }
   function sendChatMessage (message) {
+    if(message == "") return;
     ws.send(JSON.stringify({chatMessage: message, username: username}));
   }
   function shootWeapon () {
@@ -521,6 +600,35 @@
     }
     _0x0f0b();
     return line;
+  }
+  function playSound (sound_name, object, position, looped, noPlay) {
+    var sound = new THREE.PositionalAudio(listener);
+    if(looped) sound.loop = true;
+    var audioLoader = new THREE.AudioLoader();
+    audioLoader.load("assets/audio/"+sound_name+".mp3", function(buffer) {
+      sound.setBuffer(buffer);
+      sound.setRefDistance(20);
+      !noPlay && sound.play();
+    });
+    var object;
+    if(!object) {
+      object = new THREE.Object3D();
+      position && object.position.set(position.x, position.y, position.z);
+      scene.add(object);
+      sound.onEnded=function(){
+        this.isPlaying = false;
+        object.removeFromParent();
+      }
+    }
+    object.add(sound);
+    return sound;
+  }
+  function showPatchnotes () {
+    var e = error("");
+    e.childNodes[0].innerHTML = "Patchnotes";
+    
+    //v1.0.0_alpha3
+    e.innerHTML += "version 1.0.0_alpha3 - Improved the statistics page a lot, patched annoying bugs, added pause menu and settings, improved anti-cheat, minor map additions, a sound system with some walking sounds, and added a REAL leaderboard with first, second and third places that are based on kills.";
   }
   function initialize() {
     document.getElementsByClassName("loading")[0].style.display = "block";
@@ -615,9 +723,10 @@
       if(data.death) {
         players[data.death].playAnimation("char.death", true, false, 1000, true);
         if(players[data.killer]) {
-          players[data.killer].kills++;
+          //players[data.killer].kills++;
           chatMessage(players[data.death].username+" was killed by "+players[data.killer].username);
           if(data.death == me) {
+            canPause = false;
             killer = data.killer;
             if(!localStorage.deaths) localStorage.deaths = "0";
             localStorage.deaths = JSON.stringify(Number(localStorage.deaths)+1);
@@ -632,14 +741,17 @@
         return
       }
       if(data.respawn) {
-        players[me].collision.shapes[0].halfExtents.y = 2;
         players[data.respawn].stopAnimation("char.death");
-        if(data.respawn == me) setTimeout(function (){players[me].updateCollision()}, 40);
         return
       }
       if(data.teleport) {
         players[me].collision.position.set(data.teleport.x, data.teleport.y, data.teleport.z);
         return
+      }
+      if(data.pong) {
+        ping = Date.now() - data.pong;
+        document.getElementById("ping_text").innerHTML = ping+" ms ping"
+        return;
       }
       me = data.me;
       if(me == data.sender) {
@@ -652,16 +764,32 @@
         player = new Player(data.username, data.sender);
         chatMessage(data.username+" joined");
       }
-      player.character.visible = !player.isMe;
+      player.character.visible = !player.isMe || thirdPerson;
       if(!player.isMe) {
         world.removeBody(player.collision);
       } else {
         world.addBody(player.collision);
       }
       if(data.walking) {
+        player.walking = true;
+        raycaster.set(player.character.position, new THREE.Vector3(0, -1, 0));
+        var hit = raycaster.intersectObject(scene.children[2]);
+        if(hit[0] && hit[0].distance < 2.09) {
+          if(!player.walkSounds[hit[0].object.MATERIAL]) {
+            player.walkSounds[hit[0].object.MATERIAL] = playSound("walk_"+hit[0].object.MATERIAL, this.character, false, true);
+          }
+          Object.values(player.walkSounds).forEach(function (sound) {
+            sound.setVolume(0);
+          });
+          player.walkSounds[hit[0].object.MATERIAL].setVolume(1&&document.getElementById("sounds").checked);
+        }
         player.playAnimation("movement.walk", false, true);
         player.stopAnimation("movement.idle");
       } else {
+        player.walking = false;
+        Object.values(player.walkSounds).forEach(function (sound) {
+          sound.setVolume(0);
+        });
         player.stopAnimation("movement.walk");
         player.playAnimation("char.idle", false, true);
       }
@@ -671,7 +799,6 @@
         player.stopAnimation("movement.crouch");
       }
       player.health = data.health;
-      player.character.position.set(data.x, data.y, data.z);
       var doContinue = true;
       if(data.weapon == "NONE") {
         if(player.weapon && player.weapon && player.weapon.type != data.weapon) {
@@ -710,12 +837,21 @@
           player.stopAnimation("weapon.hold."+player.weapon.type);
         }
       }
+      player.kills = data.kills;
       var rot = eulerQuaternion([0, 0, data.rx]);
       var rot2 = eulerQuaternion([0, data.ry+90, 0]);
-      //head
-      player.character.children[0].children[0].children[0].children[0].quaternion.set(rot[0], rot[1], rot[2], rot[3]);
-      //body
-      if(player.health > 0) player.character.quaternion.set(rot2[0], rot2[1], rot2[2], rot2[3]);
+      if(data.sender != me) {
+        //head rotation
+        if(player.health > 0) player.character.children[0].children[0].children[0].children[0].quaternion.set(rot[0], rot[1], rot[2], rot[3]);
+        //body rotation
+        if(player.health > 0) player.character.quaternion.set(rot2[0], rot2[1], rot2[2], rot2[3]);
+        //body position
+        player.character.position.set(data.x, data.y, data.z);
+      }
+      //nametag position
+      player.nameTag.position.set(data.x, data.y+1, data.z);
+      //nametag visibility
+      player.nameTag.visible = document.getElementById("nametags").checked;
     }
     ws.onopen = function () {
       mainLoop();
@@ -724,13 +860,25 @@
       inGame = true;
     }
     document.getElementsByClassName("game_menu")[0].style.display = "none";
-    document.onmousedown = function(){
-      if(inGame) PointerLock.lock();
+    renderer.domElement.onmousedown = function(event){
+      if(inGame) {
+        PointerLock.lock();
+        canPause = true;
+      }
       if(dead) return;
+      if(event.button == 2) {
+        camera.oldfov = camera.fov;
+        camera.fov = 20;
+        return
+      }
       if(current_weapon != "NONE" && PointerLock.isLocked && !GAME_WEAPON_TYPES[current_weapon].automatic) shootWeapon();
       if(current_weapon != "NONE" && PointerLock.isLocked && GAME_WEAPON_TYPES[current_weapon].automatic) automatic_shooting = true;
     }
-    document.onmouseup = function () {
+    document.onmouseup = function (event) {
+      if(event.button == 2) {
+        camera.fov = camera.oldfov;
+        return
+      }
       automatic_shooting = false;
     }
   }
@@ -742,7 +890,7 @@
     if(!inGame || dead) return
     if(key.key == "/") {
       PointerLock.unlock();
-      setTimeout(function(){document.getElementById("talk").focus()}, 10);
+      setTimeout(function(){document.getElementById("talk").focus()}, 0);
     }
     if(key.key == "Enter" && document.activeElement == document.getElementById("talk")) {
       PointerLock.lock();
@@ -779,6 +927,9 @@
       if(players[me].weapon == "NONE") return;
       ws.send(JSON.stringify({RELOAD_WEAPON: true}));
     }
+    if(key.code == "KeyL") {
+      PointerLock.lock();
+    }
     if(reloading) return;
     if(key.code == "Digit1") {
       current_weapon = "AK-47";
@@ -813,6 +964,25 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       renderer.setSize( window.innerWidth, window.innerHeight );
   });
+  document.body.addEventListener("wheel", function (event) {
+    if(!thirdPerson) return
+    thirdPersonZoom+=event.deltaY/1000;
+    if(thirdPersonZoom < 0.2) thirdPersonZoom = 0.2;
+    if(thirdPersonZoom > 3) thirdPersonZoom = 3;
+  });
+  document.getElementById('fov').onkeydown = function () {
+    setTimeout(function(){camera.fov = Number(document.getElementById('fov').value)}, 10);
+  }
+  document.getElementById('third_person').onclick = function () {
+    thirdPerson = document.getElementById('third_person').checked;
+  }
+  document.getElementById('ping').onclick = function () {
+    if(document.getElementById("ping").checked) {
+      document.getElementById("ping_text").style.display = "block";
+    } else {
+      document.getElementById("ping_text").style.display = "none";
+    }
+  }
   console.log("PIXEL ARENA "+version);
   document.getElementById("version").innerHTML = "version "+version;
   ///////////////////////
