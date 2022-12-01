@@ -1,11 +1,82 @@
 var WebSocket = require('ws');
 var THREE = require('three');
 var fs = require('fs');
+var readline = require('readline');
 var https = require('https');
 require('./js/weaponTypes.js');
 require('./js/MATH_UTILITIES.js');
 require('./js/mapLoader.js');
 require('./js/mapTypes.js');
+var options = {noAnticheat: false, chatListen: false};
+var commands = {
+  toggleAnticheat: function(parameter){
+    options.noAnticheat = !options.noAnticheat;
+    return("Anticheat: "+!options.noAnticheat);
+  }, toggleChat: function (parameter) {
+    options.chatListen = !options.chatListen;
+    return("Listening to chat: "+options.chatListen);
+  },
+  chat: function(parameter) {
+    Object.values(userDatabase).forEach(function (item) {
+      item.ws.send(JSON.stringify({chatMessage: parameter, username: "[SERVER]"}));
+    });
+    return "Sent message to all players";
+  },
+  shutdown: function (parameter) {
+    var i = parameter;
+    function _0xf01f () {
+      commands.chat("Shutting down in "+i+" seconds");
+      i--;
+      if(i <= -1) {
+        process.exit();
+      }
+      setTimeout(_0xf01f, 1000);
+    }
+    _0xf01f();
+  },
+  list: function (parameter) {
+    for(var i = 0; i < Object.values(userDatabase).length; i++) {
+      console.log("Player: "+Object.values(userDatabase)[i].metadata.username+" id: "+Object.values(userDatabase)[i].metadata.id+" kills: "+Object.values(userDatabase)[i].kills+" Deaths: "+Object.values(userDatabase)[i].deaths)
+    }
+    return("There "+(((Object.values(userDatabase).length>1)&&"are")||"is")+" "+Object.values(userDatabase).length+" player"+(((Object.values(userDatabase).length>1)&&"s")||"")+" online");
+  },
+  kick: function (parameter) {
+    var player = false;
+    var reason = "disconnected by server operator";
+    if(parameter.split(" ")[2]) reason = parameter.split(parameter.split(" ")[1])[1];
+    for(var i = 0; i < Object.values(userDatabase).length; i++) {
+      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[1]) player = Object.values(userDatabase)[i];
+    }
+    if(player) disconnect(player, reason);
+    return((player && ("disconnected "+parameter.split(" ")[1])+" for reason "+reason) || "Player not found");
+  },
+  kill: function (parameter) {
+    var player = false;
+    for(var i = 0; i < Object.values(userDatabase).length; i++) {
+      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[1]) player = Object.values(userDatabase)[i];
+    }
+    if(player) player.health = 0;
+    return((player && ("killed "+parameter.split(" ")[1])) || "Player not found");
+  },
+  help: function (parameter) {
+    return(Object.values(commands));
+  }
+};
+var system_console = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+function response (e) {
+  if(e.length > 0 && commands[e.split(" ")[0]]) {
+    try {
+      console.log(commands[e.split(" ")[0]](e.split(e.split(" ")[0])[1]));
+    } catch (e) {
+      console.log("An error has occured");
+    }
+  }
+  system_console.question('', response);
+}
+system_console.question('', response);
 CERT_KEY = undefined;
 CERT_CHAIN = undefined;
 try {
@@ -72,7 +143,6 @@ function teleport (user, x, y, z) {
   userDatabase[user].x = x;
   userDatabase[user].y = y;
   userDatabase[user].z = z;
-  setTimeout(function () {userDatabase[user].teleporting = false;},90);
 }
 function reload (id) {
   if(!userDatabase[id]) return;
@@ -95,7 +165,7 @@ server.on('connection', (ws) => {
   var id = uuidv4();
   var username = "ERRORNAME";
   var metadata = {id, username};
-  userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: 0, oldy: 2, oldz: 0, x: 0, y: 2, z: 0, rx: 0, ry: 0, walking: false, crouch: false, weapon: "NONE", character: createCharacter(id), quaternion: new THREE.Quaternion(0,0,0,1), health: 100, lastShoot: 0, ammo: 0, reloading: false, isDead: false, lastDeath: 0, teleporting: false, lastAttacker: "", weapon_ammo: {}, kills: 0};
+  userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: 0, oldy: 2, oldz: 0, x: 0, y: 2, z: 0, rx: 0, ry: 0, walking: false, crouch: false, weapon: "NONE", character: createCharacter(id), quaternion: new THREE.Quaternion(0,0,0,1), health: 100, lastShoot: 0, ammo: 0, reloading: false, isDead: false, lastDeath: 0, teleporting: false, lastAttacker: "", weapon_ammo: {}, kills: 0, deaths: 0, lastOldPosition: Date.now()};
   ws.user = userDatabase[id];
   var console_logged = false;
   ws.on('message', (data) => {
@@ -107,24 +177,36 @@ server.on('connection', (ws) => {
       disconnect(ws.user, "invalid data");
       return;
     }
+    if(data.teleported) {
+      setTimeout(function(){userDatabase[id].teleporting = false}, 10);
+      return;
+    }
     if(data.chatMessage) {
+      if(userDatabase[id].teleporting) {return};
       if(data.chatMessage.length > 69) {
-        disconnect(ws.user, "detected by anti-cheat");
+        !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
+        return;
+      }
+      if(data.username != userDatabase[id].metadata.username) {
+        !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
         return;
       }
       Object.values(userDatabase).forEach(function (item) {
         item.ws.send(JSON.stringify(data));
       });
+      if(options.chatListen) console.log(data.username+": "+data.chatMessage);
       return;
     }
     if(data.jump) {
+      if(userDatabase[id].teleporting) {return};
       Object.values(userDatabase).forEach(function (item) {
         item.ws.send(JSON.stringify(data));
       });
       return;
     }
     if(data.SHOOT_WEAPON) {
-      if(userDatabase[id].weapon == "NONE") disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].teleporting) {return};
+      if(userDatabase[id].weapon == "NONE") !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
       try {
         if(userDatabase[id].isDead) return;
         if(Date.now() - userDatabase[id].lastShoot < GAME_WEAPON_TYPES[userDatabase[id].weapon].shootTime*1000) {
@@ -142,7 +224,7 @@ server.on('connection', (ws) => {
         var results = raycaster.intersectObjects(objects);
         var hit = {distance: Infinity, start: new THREE.Vector3(userDatabase[id].x, userDatabase[id].y+1.5384615384615385, userDatabase[id].z), position: new THREE.Vector3(userDatabase[id].x, userDatabase[id].y+1.5384615384615385, userDatabase[id].z).addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(userDatabase[id].quaternion), 100)}
         if(results[0]) {
-          hit = {position: results[0].point, distance: results[0].distance, normal: results[0].face.normal, start: new THREE.Vector3(userDatabase[id].x, userDatabase[id].y+1.5384615384615385, userDatabase[id].z)};
+          hit = {position: results[0].point, distance: results[0].distance, normal: results[0].face.normal, start: new THREE.Vector3(userDatabase[id].x, userDatabase[id].y+1.5384615384615385, userDatabase[id].z), material: results[0].object.MATERIAL};
           hit.start.add(new THREE.Vector3(GAME_WEAPON_TYPES[userDatabase[id].weapon].muzzlePoint.x, GAME_WEAPON_TYPES[userDatabase[id].weapon].muzzlePoint.y, GAME_WEAPON_TYPES[userDatabase[id].weapon].muzzlePoint.z).applyQuaternion(userDatabase[id].character.quaternion));
         }
         isPlayer = false;
@@ -165,21 +247,22 @@ server.on('connection', (ws) => {
       return;
     }
     if(data.RELOAD_WEAPON) {
+      if(userDatabase[id].teleporting) {return};
       reload(id);
       return;
     }
     var metadata = ws.user.metadata;
     if(!data.username) return;
     if(data.username.length > 16) {
-      disconnect(ws.user, "detected by anti-cheat");
+      !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
       return;
     }
     if(userDatabase[id].oldusername && (data.username != userDatabase[id].oldusername)) {
-        disconnect(ws.user, "detected by anti-cheat");
-        return;
+      !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
+      return;
     }
     if(!GAME_WEAPON_TYPES[data.weapon] && data.weapon != "NONE") {
-      disconnect(ws.user, "detected by anti-cheat");
+      !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
       return
     }
     for(var i = 0; i < Object.values(userDatabase).length; i++) {
@@ -190,8 +273,12 @@ server.on('connection', (ws) => {
         return;
       }
     };
+    if(data.username == "[SERVER]") {
+      disconnect(ws.user, "reserved username");
+      return
+    };
     if(data.weapon != userDatabase[id].weapon && userDatabase[id].reloading) {
-      disconnect(ws.user, "detected by anti-cheat");
+      !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
       return
     }
     if(data.weapon != userDatabase[id].weapon && data.weapon != "NONE") userDatabase[id].ammo = userDatabase[id].weapon_ammo[data.weapon] || GAME_WEAPON_TYPES[data.weapon].ammo;
@@ -201,7 +288,7 @@ server.on('connection', (ws) => {
       console.log(metadata.username+" connected");
     }
     try {
-      userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: userDatabase[id].x, oldy: userDatabase[id].y, oldz: userDatabase[id].z, x: data.x, y: data.y, z: data.z, rx: data.rx, ry: data.ry, oldusername: data.username, walking: data.walking, crouch: data.crouch, weapon: data.weapon, character: userDatabase[id].character, quaternion: userDatabase[id].quaternion, health: userDatabase[id].health, lastShoot: userDatabase[id].lastShoot, ammo: userDatabase[id].ammo, reloading: userDatabase[id].reloading, isDead: userDatabase[id].isDead, lastDeath: userDatabase[id].lastDeath, teleporting: userDatabase[id].teleporting, lastAttacker: userDatabase[id].lastAttacker, weapon_ammo: userDatabase[id].weapon_ammo, kills: userDatabase[id].kills};
+      userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: userDatabase[id].oldx, oldy: userDatabase[id].oldy, oldz: userDatabase[id].oldz, x: data.x, y: data.y, z: data.z, rx: data.rx, ry: data.ry, oldusername: data.username, walking: data.walking, crouch: data.crouch, weapon: data.weapon, character: userDatabase[id].character, quaternion: userDatabase[id].quaternion, health: userDatabase[id].health, lastShoot: userDatabase[id].lastShoot, ammo: userDatabase[id].ammo, reloading: userDatabase[id].reloading, isDead: userDatabase[id].isDead, lastDeath: userDatabase[id].lastDeath, teleporting: userDatabase[id].teleporting, lastAttacker: userDatabase[id].lastAttacker, weapon_ammo: userDatabase[id].weapon_ammo, kills: userDatabase[id].kills, deaths: userDatabase[id].deaths, lastOldPosition: userDatabase[id].lastOldPosition};
       ws.send(JSON.stringify({pong: data.ping}));
     } catch (e) {
       disconnect(ws.user, "failed to establish a secure connection");
@@ -226,16 +313,16 @@ server.on('connection', (ws) => {
       teleport(id, 0, 2, 0);
     }
     var dist = Math.sqrt(Math.pow(userDatabase[id].oldx - userDatabase[id].x, 2)+Math.pow(userDatabase[id].oldy - userDatabase[id].y, 2)+Math.pow(userDatabase[id].oldz - userDatabase[id].z, 2));
-    if(dist > 0.3 && !userDatabase[id].teleporting) {
-      disconnect(ws.user, "detected by anti-cheat");
+    if(dist > 22 && !userDatabase[id].teleporting) {
+      !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
     };
     try {
-      if(userDatabase[id].x > MAP.limits[0]) disconnect(ws.user, "detected by anti-cheat");
-      if(userDatabase[id].x < MAP.limits[1]) disconnect(ws.user, "detected by anti-cheat");
-      if(userDatabase[id].y > MAP.limits[2]) disconnect(ws.user, "detected by anti-cheat");
-      if(userDatabase[id].y < MAP.limits[3]) disconnect(ws.user, "detected by anti-cheat");
-      if(userDatabase[id].z > MAP.limits[4]) disconnect(ws.user, "detected by anti-cheat");
-      if(userDatabase[id].z < MAP.limits[5]) disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].x > MAP.limits[0]) !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].x < MAP.limits[1]) !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].y > MAP.limits[2]) !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].y < MAP.limits[3]) !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].z > MAP.limits[4]) !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
+      if(userDatabase[id].z < MAP.limits[5]) !options.noAnticheat && disconnect(ws.user, "detected by anti-cheat");
     } catch (e) {}
   });
   ws.on("close", () => {
@@ -254,6 +341,7 @@ function serverTick(){
     if(client.health < 0) client.health = 0;
     if(client.health == 0 && !client.isDead) {
       client.isDead = true;
+      client.deaths += 1;
       if(client.lastAttacker) userDatabase[client.lastAttacker].kills += 1;
       Object.values(userDatabase).forEach(function (item) {
         item.ws.send(JSON.stringify({death: client.metadata.id, killer: client.lastAttacker}));
@@ -270,6 +358,12 @@ function serverTick(){
     } catch (e) {};
     if(client.lastActivity - Date.now() < -10000){
       disconnect(client);
+    }
+    if((client.lastOldPosition - Date.now() < -1000) && !client.teleporting) {
+      client.lastOldPosition = Date.now();
+      client.oldx = client.x;
+      client.oldy = client.y;
+      client.oldz = client.z;
     }
   }
   setTimeout(serverTick, 1);

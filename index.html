@@ -138,11 +138,11 @@
         position: fixed;
         pointer-events: none;
         width: 30%;
-        height: 30%;
+        height: 40%;
         background-image: url('assets/textures/UI/instructions.png');
         transition: opacity 0.2s;
         background-size: 100% 100%;
-        top: 54%;
+        top: 50%;
         z-index: 2;
         left: 76%;
         display: none;
@@ -211,13 +211,13 @@
   <div id="leaderboard"></div>
   <div id="ping_text">-1 ms ping</div>
   <div id="settings"><h1>Settings</h1><br><input type="checkbox" id="third_person">Third person<br><input type="checkbox" id="nametags">Show nametags<br><input type="checkbox" id="ping">Show ping<br><input type="checkbox" id="sounds">Sounds<br>FOV: <input type="number" id="fov"><br><button style="position: unset"; onclick="document.getElementById('settings').style.display = 'none';"><h1>Close</h1></button></div>
-  <div id="pause"><h1 style="text-align: center;">Pixel Arena</h1><br><h2 style="text-align: center;">Game paused</h2><br><button style="left: 40%; width: 20%; top: 25%" onclick="PointerLock.lock();paused=false;"><h1>resume</h1></button><button style="left: 40%; width: 20%; top: 35%" onclick="document.getElementById('settings').style.display='block';document.getElementById('fov').value=camera.fov;"><h1>settings</h1></button><button style="left: 40%; width: 20%; top: 45%" onclick="if(!localStorage.disconnect) localStorage.disconnect = '0';localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1); location.reload()"><h1>disconnect</h1></button></div> 
+  <div id="pause"><h1 style="text-align: center;">Pixel Arena</h1><br><h2 style="text-align: center;">Game paused</h2><br><button style="left: 40%; width: 20%; top: 25%" onclick="PointerLock.lock();paused=false;"><h1>resume</h1></button><button style="left: 40%; width: 20%; top: 35%" onclick="document.getElementById('settings').style.display='block';"><h1>settings</h1></button><button style="left: 40%; width: 20%; top: 45%" onclick="if(!localStorage.disconnect) localStorage.disconnect = '0';localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1); location.reload()"><h1>disconnect</h1></button></div> 
   <div class="game_menu">
     <br>
     <h1>Pixel Arena</h1>
     <br>
     <button style="left: 33.3%; width: 33.3%; position: absolute; top: 20%" onclick=initialize()><h1>Join game</h1></button>
-    <button style="left: 33.3%; width: 33.3%; position: absolute; top: 30%" onclick=location.href="stats.html"><h1>Statistics</h1></button>
+    <button style="left: 33.3%; width: 33.3%; position: absolute; top: 30%" onclick=showStats()><h1>Statistics</h1></button>
     <button style="left: 33.3%; width: 33.3%; position: absolute; top: 40%" onclick="showPatchnotes();"><h1>Patchnotes</h1></button>
     <div style="left: 33.3%; position: absolute; top: 61.5%; font-size: 150%">Username:</div>
     <input id="username" style="left: 41.625%; width: 24.975%; position: absolute; top: 60%; font-size: 200%;" placeholder="pick a name" maxlength="16"></input>
@@ -282,6 +282,7 @@
   var inGame = false;
   var username = null;
   var disconnected = false;
+  var reason = false;
   var walking = false;
   var crouch = false;
   var decal_limit = 420;
@@ -301,7 +302,7 @@
   var player_height = 4;
   var canPause = false;
   var ping = 0;
-  var version = "1.0.0_alpha3";
+  var version = "1.0.0_alpha4";
   var CONFIG_SERVER = window.CONFIG_SERVER || "localhost";
   var PROTOCOL = "ws";
   if(CONFIG_SERVER != "localhost") PROTOCOL = "wss";
@@ -315,6 +316,7 @@
   preloadModel("char");
   preloadModel("ak-47");
   preloadModel("pistol");
+  preloadModel("m24");
   createMaterial("decals/bullet_1");
   createMaterial("decals/bullet_2");
   class Player {
@@ -402,8 +404,8 @@
     return decal;
   }
   function mainLoop() {
-    if(ws.readyState == 3 && !disconnected) {
-      error("The server you were in has gone down.");
+    if(ws.readyState == 3) {
+      error(reason || "The server you were in has gone down.");
       if(!localStorage.disconnect) localStorage.disconnect = "0";
       localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1);
       return
@@ -419,12 +421,19 @@
     } else {
       document.getElementById("pause").style.display = "block";
     }
+    localStorage.third_person = document.getElementById("third_person").checked;
+    localStorage.nametags = document.getElementById("nametags").checked;
+    localStorage.ping = document.getElementById("ping").checked;
+    localStorage.sounds = document.getElementById("sounds").checked;
+    localStorage.fov = document.getElementById("fov").value;
     paused = !PointerLock.isLocked && canPause && document.activeElement != document.getElementById("talk") && !dead;
     document.getElementsByClassName("loading")[0].style.display = "none";
     document.getElementsByClassName("chat")[0].style.display = "block";
     document.getElementsByClassName("instructions")[0].style.display = "block";
     document.getElementById("leaderboard").style.display = "block";
     username = document.getElementById("username").value;
+    document.getElementById("ping_text").style.display = (document.getElementById("ping").checked && "block") || "none";
+    thirdPerson = document.getElementById('third_person').checked;
     camera.updateProjectionMatrix();
     if(ws.readyState == 1) ws.send(JSON.stringify({x: position.x, y: position.y, z: position.z, rx: rotation.x, ry: rotation.y, username: username, walking: walking, crouch: crouch, weapon: current_weapon, ping: Date.now()}));
     if(!camera.fov) camera.fov = 100;
@@ -441,19 +450,40 @@
       q[2] -= 180;
       q = eulerQuaternion([q[0], q[1], q[2]]);
       q = new THREE.Quaternion(q[0], q[1], q[2], q[3]);
+      //weapon position
       if(player.weapon) {
         player.weapon.position.copy(v);
         player.weapon.quaternion.copy(q);
       }
+      //nametag position
+      player.nameTag.position.set(player.character.position.x, player.character.position.y+1, player.character.position.z);
+      //nametag visibility
+      player.nameTag.visible = document.getElementById("nametags").checked;
     });
     try {
       if(list[0].kills == 0) {
         document.getElementById("leaderboard").innerHTML = "";
       } else {
         document.getElementById("leaderboard").innerHTML = "<h3>LEADERBOARD</h3>";
-        document.getElementById("leaderboard").innerHTML += "<b>1</b>. "+list[0].username+" with "+list[0].kills+" kills<br>";
-        if(list[1].kills) document.getElementById("leaderboard").innerHTML += "<b>2</b>. "+list[1].username+" with "+list[1].kills+" kills<br>";
-        if(list[2].kills) document.getElementById("leaderboard").innerHTML += "<b>3</b>. "+list[2].username+" with "+list[2].kills+" kills<br>";
+        document.getElementById("leaderboard").innerHTML += "<b>1</b>. ";
+        var first = document.createElement("text");
+        first.innerText = list[0].username;
+        document.getElementById("leaderboard").appendChild(first);
+        document.getElementById("leaderboard").innerHTML += " with "+list[0].kills+" kills<br>";
+        if(list[1].kills) {
+          document.getElementById("leaderboard").innerHTML += "<b>2</b>. ";
+          var second = document.createElement("text");
+          second.innerText = list[1].username;
+          document.getElementById("leaderboard").appendChild(second);
+          document.getElementById("leaderboard").innerHTML += " with "+list[1].kills+" kills<br>";
+        }
+        if(list[2].kills) {
+          document.getElementById("leaderboard").innerHTML += "<b>3</b>. ";
+          var third = document.createElement("text");
+          third.innerText = list[2].username;
+          document.getElementById("leaderboard").appendChild(third);
+          document.getElementById("leaderboard").innerHTML += " with "+list[2].kills+" kills<br>";
+        }
       }
     } catch (e) {}
     if(killer != "" && dead && players[killer]) {
@@ -599,6 +629,7 @@
       setTimeout(_0x0f0b, 1);
     }
     _0x0f0b();
+    document.getElementById("sounds").checked && playSound("bullet/fly_by", line).setPlaybackRate(0.8+Math.random()*0.4);
     return line;
   }
   function playSound (sound_name, object, position, looped, noPlay) {
@@ -607,7 +638,7 @@
     var audioLoader = new THREE.AudioLoader();
     audioLoader.load("assets/audio/"+sound_name+".mp3", function(buffer) {
       sound.setBuffer(buffer);
-      sound.setRefDistance(20);
+      sound.setRefDistance(5);
       !noPlay && sound.play();
     });
     var object;
@@ -626,9 +657,21 @@
   function showPatchnotes () {
     var e = error("");
     e.childNodes[0].innerHTML = "Patchnotes";
+    var p = document.createElement("p");
+    p.style.overflowY="scroll";
+    p.style.height="50%";
+    e.appendChild(p);
     
+    //v1.0.0_alpha4
+    p.innerHTML += "<b>version 1.0.0_alpha4</b> - Added more sounds, improved anticheat, improved the false-positive situation, added server-side admin commands, added the M24, patched HTML elements in the leaderboard, stats open as a window, and game settings save now.<br>";
     //v1.0.0_alpha3
-    e.innerHTML += "version 1.0.0_alpha3 - Improved the statistics page a lot, patched annoying bugs, added pause menu and settings, improved anti-cheat, minor map additions, a sound system with some walking sounds, and added a REAL leaderboard with first, second and third places that are based on kills.";
+    p.innerHTML += "<b>version 1.0.0_alpha3</b> - Improved the statistics page a lot, patched annoying bugs, added pause menu and settings, improved anti-cheat, minor map additions, a sound system with some walking sounds, and added a REAL leaderboard with first, second and third places that are based on kills.";
+  }
+  function showStats () {
+    e = error("");
+    e.childNodes[0].outerHTML = "";
+    e.innerHTML = "<iframe src='stats.html' style='width:100%; height: 100%; border: none;' scrolling='no'></iframe>";
+    e.style.height = "50%";
   }
   function initialize() {
     document.getElementsByClassName("loading")[0].style.display = "block";
@@ -642,7 +685,7 @@
       var data = JSON.parse(data.data);
       if(data.disconnect_user) {
         if(data.disconnect_user == me) {
-          error("Kicked from game. Reason: "+data.reason);
+          reason = "Kicked from game. Reason: "+data.reason;
           if(!localStorage.disconnect) localStorage.disconnect = "0";
           localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1);
           disconnected = true;
@@ -664,6 +707,8 @@
       if(data.SHOOT_WEAPON) {
         if(data.SHOOT_WEAPON.position) {
           bullet(data.SHOOT_WEAPON.position, data.SHOOT_WEAPON.start);
+          document.getElementById("sounds").checked && playSound("weapon/shoot/"+players[data.attacker].weapon.type, players[data.attacker].weapon);
+          document.getElementById("sounds").checked && playSound("bullet/"+data.SHOOT_WEAPON.material+(Math.round(Math.random()*2)+1), false, new THREE.Vector3(data.SHOOT_WEAPON.position.x, data.SHOOT_WEAPON.position.y, data.SHOOT_WEAPON.position.z)).setVolume(0.4);
           if(!data.isPlayer) {
             if (data.SHOOT_WEAPON.normal) spawnDecal(new THREE.Vector3(data.SHOOT_WEAPON.position.x, data.SHOOT_WEAPON.position.y, data.SHOOT_WEAPON.position.z), new THREE.Vector3(data.SHOOT_WEAPON.normal.x, data.SHOOT_WEAPON.normal.y, data.SHOOT_WEAPON.normal.z));
           } else {
@@ -714,6 +759,7 @@
       }
       if(data.RELOAD_WEAPON) {
         players[data.RELOAD_WEAPON].weapon.reload();
+        document.getElementById("sounds").checked && playSound("weapon/reload/"+players[data.RELOAD_WEAPON].weapon.type, players[data.RELOAD_WEAPON].weapon);
         if(data.RELOAD_WEAPON == me) {
           reloading = true;
           setTimeout("reloading = false", GAME_WEAPON_TYPES[current_weapon].reloadTime*1000+10);
@@ -746,6 +792,7 @@
       }
       if(data.teleport) {
         players[me].collision.position.set(data.teleport.x, data.teleport.y, data.teleport.z);
+        ws.send(JSON.stringify({teleported: true}))
         return
       }
       if(data.pong) {
@@ -848,10 +895,6 @@
         //body position
         player.character.position.set(data.x, data.y, data.z);
       }
-      //nametag position
-      player.nameTag.position.set(data.x, data.y+1, data.z);
-      //nametag visibility
-      player.nameTag.visible = document.getElementById("nametags").checked;
     }
     ws.onopen = function () {
       mainLoop();
@@ -860,6 +903,12 @@
       inGame = true;
     }
     document.getElementsByClassName("game_menu")[0].style.display = "none";
+    document.getElementById("third_person").checked = localStorage.third_person == "true";
+    document.getElementById("nametags").checked = localStorage.nametags == "true";
+    document.getElementById("ping").checked = localStorage.ping == "true";
+    document.getElementById("sounds").checked = localStorage.sounds == "true" || (localStorage.sounds != "true" && localStorage.sounds != "false");
+    document.getElementById("fov").value = Number(localStorage.fov) || 100;
+    camera.fov = Number(document.getElementById('fov').value);
     renderer.domElement.onmousedown = function(event){
       if(inGame) {
         PointerLock.lock();
@@ -938,6 +987,9 @@
       current_weapon = "Pistol";
     }
     if(key.code == "Digit3") {
+      current_weapon = "M24";
+    }
+    if(key.code == "Digit4") {
       current_weapon = "NONE";
     }
   }
@@ -972,16 +1024,6 @@
   });
   document.getElementById('fov').onkeydown = function () {
     setTimeout(function(){camera.fov = Number(document.getElementById('fov').value)}, 10);
-  }
-  document.getElementById('third_person').onclick = function () {
-    thirdPerson = document.getElementById('third_person').checked;
-  }
-  document.getElementById('ping').onclick = function () {
-    if(document.getElementById("ping").checked) {
-      document.getElementById("ping_text").style.display = "block";
-    } else {
-      document.getElementById("ping_text").style.display = "none";
-    }
   }
   console.log("PIXEL ARENA "+version);
   document.getElementById("version").innerHTML = "version "+version;
