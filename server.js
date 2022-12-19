@@ -7,7 +7,7 @@ require('./js/weaponTypes.js');
 require('./js/MATH_UTILITIES.js');
 require('./js/mapLoader.js');
 require('./js/mapTypes.js');
-var options = {noAnticheat: false, chatListen: false};
+var options = {noAnticheat: false, chatListen: false, infAmmo: false};
 var commands = {
   toggleAnticheat: function(parameter){
     options.noAnticheat = !options.noAnticheat;
@@ -60,6 +60,18 @@ var commands = {
   },
   help: function (parameter) {
     return(Object.values(commands));
+  },
+  teleport: function (parameter) {
+    var player = false;
+    for(var i = 0; i < Object.values(userDatabase).length; i++) {
+      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[1]) player = Object.values(userDatabase)[i];
+    }
+    if(player) teleport(player.metadata.id, Number(parameter.split(" ")[2]), Number(parameter.split(" ")[3]), Number(parameter.split(" ")[4]));
+    return((player && ("Teleported "+parameter.split(" ")[1])) || "Player not found");
+  },
+  infAmmo: function(parameter){
+    options.infAmmo = !options.infAmmo;
+    return("Infinite ammo: "+options.infAmmo);
   }
 };
 var system_console = readline.createInterface({
@@ -77,6 +89,9 @@ function response (e) {
   system_console.question('', response);
 }
 system_console.question('', response);
+system_console.on("close", function () {
+  console.log("System console terminated. Press CTRL+C again to stop the server.");
+})
 CERT_KEY = undefined;
 CERT_CHAIN = undefined;
 try {
@@ -104,12 +119,6 @@ var geometry = new THREE.BoxGeometry();
 //////////////////////////////////////////////////
 var MAP = loadMap("map_arena", scene, geometry);
 //////////////////////////////////////////////////
-var floor = {};
-floor.shape = new THREE.Mesh(geometry);
-floor.shape.scale.set(100,1,100);
-floor.shape.position.y = -1;
-//scene.add(floor.shape);
-floor.shape.updateMatrixWorld();
 var raycaster = new THREE.Raycaster;
 raycaster.set(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, -1, 0));
 var title = "monkey-operated server console 🙈🙉🙊🐵🐒";
@@ -128,7 +137,7 @@ function disconnect (user, reason) {
     for(var i = 0; i < Object.values(userDatabase).length; i++) { 
       Object.values(userDatabase)[i].ws.send('{"disconnect_user":"'+user.metadata.id+'", "reason": "'+reason+'", "username": "'+user.metadata.username+'"}')
     }
-    user.ws.terminate();
+    //user.ws.terminate();
     userDatabase[user.metadata.id].character.removeFromParent();
     delete(userDatabase[user.metadata.id]);
     console.log(user.metadata.username+" disconnected");
@@ -178,7 +187,7 @@ server.on('connection', (ws) => {
       return;
     }
     if(data.teleported) {
-      setTimeout(function(){userDatabase[id].teleporting = false}, 10);
+      setTimeout(function(){userDatabase[id].teleporting = false;}, 10);
       return;
     }
     if(data.chatMessage) {
@@ -230,7 +239,7 @@ server.on('connection', (ws) => {
         isPlayer = false;
         if(results[0] && (results[0].object.name == "PLAYER_CHARACTER")) isPlayer = results[0].object.ID;
         var headshot = results[0] && (results[0].point.y - results[0].object.position.y) > 1;
-        userDatabase[id].ammo--;
+        !options.infAmmo && userDatabase[id].ammo--;
         userDatabase[id].weapon_ammo[userDatabase[id].weapon] = userDatabase[id].ammo;
         Object.values(userDatabase).forEach(function (item) {
           item.ws.send(JSON.stringify({SHOOT_WEAPON: hit, isPlayer: isPlayer, attacker: id, headshot: headshot}));
@@ -307,10 +316,19 @@ server.on('connection', (ws) => {
     if(Date.now() - userDatabase[id].lastDeath > 5000 && userDatabase[id].isDead) {
       userDatabase[id].health = 100;
       userDatabase[id].isDead = false;
+      userDatabase[id].weapon_ammo = {};
+      if(userDatabase[id].weapon != "NONE") {
+        userDatabase[id].ammo = GAME_WEAPON_TYPES[userDatabase[id].weapon].ammo;
+      }
       Object.values(userDatabase).forEach(function (item) {
         item.ws.send(JSON.stringify({respawn: id}));
       });
       teleport(id, 0, 2, 0);
+    }
+    if(userDatabase[id].teleporting) {
+      userDatabase[id].oldx = userDatabase[id].x;
+      userDatabase[id].oldy = userDatabase[id].y;
+      userDatabase[id].oldz = userDatabase[id].z;
     }
     var dist = Math.sqrt(Math.pow(userDatabase[id].oldx - userDatabase[id].x, 2)+Math.pow(userDatabase[id].oldy - userDatabase[id].y, 2)+Math.pow(userDatabase[id].oldz - userDatabase[id].z, 2));
     if(dist > 22 && !userDatabase[id].teleporting) {
@@ -342,7 +360,7 @@ function serverTick(){
     if(client.health == 0 && !client.isDead) {
       client.isDead = true;
       client.deaths += 1;
-      if(client.lastAttacker) userDatabase[client.lastAttacker].kills += 1;
+      if(client.lastAttacker && userDatabase[client.lastAttacker]) userDatabase[client.lastAttacker].kills += 1;
       Object.values(userDatabase).forEach(function (item) {
         item.ws.send(JSON.stringify({death: client.metadata.id, killer: client.lastAttacker}));
       });
@@ -359,7 +377,7 @@ function serverTick(){
     if(client.lastActivity - Date.now() < -10000){
       disconnect(client);
     }
-    if((client.lastOldPosition - Date.now() < -1000) && !client.teleporting) {
+    if((client.lastOldPosition - Date.now() < -1000)) {
       client.lastOldPosition = Date.now();
       client.oldx = client.x;
       client.oldy = client.y;
