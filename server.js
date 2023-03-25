@@ -4,9 +4,8 @@ var fs = require('fs');
 var readline = require('readline');
 var https = require('https');
 require('./js/weaponTypes.js');
-require('./js/MATH_UTILITIES.js');
+require('./js/map_utilities.js');
 require('./js/mapLoader.js');
-require('./js/mapTypes.js');
 var options = {noAnticheat: false, chatListen: false, infAmmo: false};
 var commands = {
   toggleAnticheat: function(parameter){
@@ -38,40 +37,47 @@ var commands = {
     for(var i = 0; i < Object.values(userDatabase).length; i++) {
       console.log("Player: "+Object.values(userDatabase)[i].metadata.username+" id: "+Object.values(userDatabase)[i].metadata.id+" kills: "+Object.values(userDatabase)[i].kills+" Deaths: "+Object.values(userDatabase)[i].deaths)
     }
-    return("There "+(((Object.values(userDatabase).length>1)&&"are")||"is")+" "+Object.values(userDatabase).length+" player"+(((Object.values(userDatabase).length>1)&&"s")||"")+" online");
+    return("There "+(((Object.values(userDatabase).length!=1)&&"are")||"is")+" "+Object.values(userDatabase).length+" player"+(((Object.values(userDatabase).length!=1)&&"s")||"")+" online");
   },
   kick: function (parameter) {
     var player = false;
     var reason = "disconnected by server operator";
-    if(parameter.split(" ")[2]) reason = parameter.split(parameter.split(" ")[1])[1];
+    if(parameter.split(" ")[1]) reason = parameter.split(parameter.split(" ")[0])[1];
     for(var i = 0; i < Object.values(userDatabase).length; i++) {
-      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[1]) player = Object.values(userDatabase)[i];
+      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[0]) player = Object.values(userDatabase)[i];
     }
     if(player) disconnect(player, reason);
-    return((player && ("disconnected "+parameter.split(" ")[1])+" for reason "+reason) || "Player not found");
+    return((player && ("disconnected "+parameter.split(" ")[0])+" for reason"+reason) || "Player not found");
   },
   kill: function (parameter) {
     var player = false;
     for(var i = 0; i < Object.values(userDatabase).length; i++) {
-      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[1]) player = Object.values(userDatabase)[i];
+      if(Object.values(userDatabase)[i].metadata.username == parameter) player = Object.values(userDatabase)[i];
     }
     if(player) player.health = 0;
-    return((player && ("killed "+parameter.split(" ")[1])) || "Player not found");
+    return((player && ("killed "+parameter)) || "Player not found");
   },
   help: function (parameter) {
-    return(Object.values(commands));
+    return("Command list: \n"+Object.keys(commands).join().replaceAll(",","\n").replace("[","").replace("]",""));
   },
   teleport: function (parameter) {
     var player = false;
     for(var i = 0; i < Object.values(userDatabase).length; i++) {
-      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[1]) player = Object.values(userDatabase)[i];
+      if(Object.values(userDatabase)[i].metadata.username == parameter.split(" ")[0]) player = Object.values(userDatabase)[i];
     }
-    if(player) teleport(player.metadata.id, Number(parameter.split(" ")[2]), Number(parameter.split(" ")[3]), Number(parameter.split(" ")[4]));
-    return((player && ("Teleported "+parameter.split(" ")[1])) || "Player not found");
+    if(player) teleport(player.metadata.id, Number(parameter.split(" ")[1]), Number(parameter.split(" ")[2]), Number(parameter.split(" ")[3]));
+    return((player && ("Teleported "+parameter.split(" ")[0])) || "Player not found");
   },
   infAmmo: function(parameter){
     options.infAmmo = !options.infAmmo;
     return("Infinite ammo: "+options.infAmmo);
+  },
+  map: function(parameter){
+    loadMap(parameter, scene, geometry)
+    Object.values(userDatabase).forEach(function (item) {
+      item.ws.send(JSON.stringify({map: parameter}));
+    });
+    return("Set map to: "+parameter);
   }
 };
 var system_console = readline.createInterface({
@@ -81,7 +87,7 @@ var system_console = readline.createInterface({
 function response (e) {
   if(e.length > 0 && commands[e.split(" ")[0]]) {
     try {
-      console.log(commands[e.split(" ")[0]](e.split(e.split(" ")[0])[1]));
+      console.log(commands[e.split(" ")[0]](e.split(" ").splice(1).join(" ")));
     } catch (e) {
       console.log("An error has occured");
     }
@@ -94,6 +100,7 @@ system_console.on("close", function () {
 })
 CERT_KEY = undefined;
 CERT_CHAIN = undefined;
+CONFIG_MAP = false;
 try {
   require('./config.js');
   CERT_KEY = fs.readFileSync(CERT_KEY, 'utf8');
@@ -117,7 +124,7 @@ var userDatabase = {};
 var scene = new THREE.Scene();
 var geometry = new THREE.BoxGeometry();
 //////////////////////////////////////////////////
-var MAP = loadMap("map_arena", scene, geometry);
+loadMap(CONFIG_MAP || "map_arena", scene, geometry);
 //////////////////////////////////////////////////
 var raycaster = new THREE.Raycaster;
 raycaster.set(new THREE.Vector3(0, 10, 0), new THREE.Vector3(0, -1, 0));
@@ -170,6 +177,14 @@ function reload (id) {
   }, GAME_WEAPON_TYPES[userDatabase[id].weapon].reloadTime*1000);
   return true;
 }
+function respawn (id) {
+  var spawns = [];
+  MAP.objects.forEach(function (object) {
+    object.type == "spawn" && spawns.push(object);
+  });
+  var selected = spawns[Math.floor(Math.random()*spawns.length)];
+  teleport(id, selected && selected.position.x || 0, selected && selected.position.y || 2, selected && selected.position.z || 0);
+}
 server.on('connection', (ws) => {
   var id = uuidv4();
   var username = "ERRORNAME";
@@ -209,7 +224,7 @@ server.on('connection', (ws) => {
     if(data.jump) {
       if(userDatabase[id].teleporting) {return};
       Object.values(userDatabase).forEach(function (item) {
-        item.ws.send(JSON.stringify(data));
+        item.ws.send(JSON.stringify({jump: id}));
       });
       return;
     }
@@ -295,6 +310,9 @@ server.on('connection', (ws) => {
     if(!console_logged) {
       console_logged = true;
       console.log(metadata.username+" connected");
+      setTimeout(function () {
+        respawn(id);
+      }, 10);
     }
     try {
       userDatabase[id] = {lastActivity: Date.now(), ws: ws, metadata: metadata, oldx: userDatabase[id].oldx, oldy: userDatabase[id].oldy, oldz: userDatabase[id].oldz, x: data.x, y: data.y, z: data.z, rx: data.rx, ry: data.ry, oldusername: data.username, walking: data.walking, crouch: data.crouch, weapon: data.weapon, character: userDatabase[id].character, quaternion: userDatabase[id].quaternion, health: userDatabase[id].health, lastShoot: userDatabase[id].lastShoot, ammo: userDatabase[id].ammo, reloading: userDatabase[id].reloading, isDead: userDatabase[id].isDead, lastDeath: userDatabase[id].lastDeath, teleporting: userDatabase[id].teleporting, lastAttacker: userDatabase[id].lastAttacker, weapon_ammo: userDatabase[id].weapon_ammo, kills: userDatabase[id].kills, deaths: userDatabase[id].deaths, lastOldPosition: userDatabase[id].lastOldPosition};
@@ -323,7 +341,7 @@ server.on('connection', (ws) => {
       Object.values(userDatabase).forEach(function (item) {
         item.ws.send(JSON.stringify({respawn: id}));
       });
-      teleport(id, 0, 2, 0);
+      respawn(id);
     }
     if(userDatabase[id].teleporting) {
       userDatabase[id].oldx = userDatabase[id].x;
@@ -367,11 +385,11 @@ function serverTick(){
       client.lastDeath = Date.now();
     }
     try {
-      var rot = eulerQuaternion([0, client.ry+90, 0]);
-      var rot2 = eulerQuaternion([0, client.ry+90, client.rx]);
+      var rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(client.ry+90), 0));
+      var rot2 = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(client.ry+90), THREE.MathUtils.degToRad(client.rx)));
       client.character.position.set(client.x, client.y, client.z);
-      client.quaternion.set(rot2[0], rot2[1], rot2[2], rot2[3]);
-      client.character.quaternion.set(rot[0], rot[1], rot[2], rot[3]);
+      client.quaternion.copy(rot2);
+      client.character.quaternion.copy(rot);
       client.character.updateMatrixWorld();
     } catch (e) {};
     if(client.lastActivity - Date.now() < -10000){

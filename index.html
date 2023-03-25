@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <script>
- //CREATE CONFIG WILE NAMED "CONFIG.JS"
+ //CREATE CONFIG FILE NAMED "CONFIG.JS"
  //INSIDE PUT GLOBAL VARIABLE "CONFIG_SERVER"
  //SET IT TO YOUR WEBSERVER ADDRESS
  //INSIDE PUT GLOBAL VARIABLE "CERT_KEY"
@@ -9,6 +9,8 @@
  //INSIDE PUT GLOBAL VARIABLE "CERT_CHAIN"
  //SET IT TO YOUR CHAIN PEM FILE PATH
  //IF INFO IS MISSING, DEFAULTS TO LOCALHOST
+ //INSIDE PUT GLOBAL VARIABLE "CONFIG_MAP"
+ //IF NOT SET, DEFAULTS TO MAP_ARENA
  //PIXEL ARENA
 </script>
 <head>
@@ -22,13 +24,13 @@
     <script src="js/text_sprite.js"></script>
     <script src="js/SkeletonUtils.js"></script>
     <script src="js/weaponTypes.js"></script>
-    <script src="js/MATH_UTILITIES.js"></script>
     <!--
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.js" integrity="sha512-+E0UhA8ib3H5AlREMX1I0mc3R7HMkQYH+hkkfW47aLGMnVJwod+jJ2jxe94xYyUdqPs9AFDHUxKnJzScEP5cmA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     -->
     <script src="js/cannon.js"></script>
     <script src="js/mapLoader.js"></script>
-    <script src="js/mapTypes.js"></script>
+    <script src="js/map_utilities.js"></script>
+    <script src="js/server_integration_main.js"></script>
     <script src="CONFIG.js"></script>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -195,6 +197,13 @@
         left: 90%;
         display: none;
       }
+      .secondary_renderer {
+        position: fixed;
+        width: 27% !important;
+        height: 50% !important;
+        top: 40%;
+        left: 5%;
+      }
     </style>
 </head>
 <body style="font-family: BlockBuilder3D; position: fixed">
@@ -204,16 +213,22 @@
       </svg>
   </template>
   <script>
+    //main renderer
     var renderer = new THREE.WebGLRenderer(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, "low-power");
-    renderer.setSize(window.innerWidth, window.innerHeight*0.96);
+    renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+    //secondary renderer
+    var secondary_renderer = new THREE.WebGLRenderer({alpha: true});
+    secondary_renderer.setSize(500,500);
+    document.body.appendChild(secondary_renderer.domElement);
+    secondary_renderer.domElement.className = "secondary_renderer";
   </script>
   <div class="damage_overlay"></div>
   <div class="health"></div>
   <div class="health_content" style=""><h1>100</h1></div>
   <div class="health_content" style="background-color: white; z-index: 0"></div>
-  <img style="pointer-events: none; position: fixed; left: 49.8%; top: 47.5%" id="crosshair" src="assets/textures/UI/crosshair.png"></img>
-  <img style="pointer-events: none; position: fixed; left: 49.8%; top: 47.5%; display: none" id="hitmarker" src="assets/textures/UI/hitmarker.png"></img>
+  <img style="pointer-events: none; position: fixed; left: 49.8%; top: 50%" id="crosshair" src="assets/textures/UI/crosshair.png"></img>
+  <img style="pointer-events: none; position: fixed; left: 49.8%; top: 50%; display: none" id="hitmarker" src="assets/textures/UI/hitmarker.png"></img>
   <div id="ammo"><h1 style="float: left" id="ammo_text">-1</h1><img src="assets/textures/UI/ammo.png" style="float: right;"></img></div>
   <div class="instructions">
     <div style="position: absolute;"><h1 style="float: left">1 - </h1><img width=150 src="assets/textures/UI/AK-47.png" style="float: left"></img></div>
@@ -228,14 +243,15 @@
   <div id="leaderboard"></div>
   <div id="ping_text">-1 ms ping</div>
   <div id="settings"><h1>Settings</h1><br><input type="checkbox" id="third_person">Third person<br><input type="checkbox" id="nametags">Show nametags<br><input type="checkbox" id="ping">Show ping<br><input type="checkbox" id="arms">Show arms<br><input type="checkbox" id="sounds">Sounds<br>FOV: <input type="range" min=15 max=120 id="fov"><br><button style="position: unset"; onclick="document.getElementById('settings').style.display = 'none';"><h1>Close</h1></button></div>
-  <div id="pause"><h1 style="text-align: center; position: fixed; z-index: 1; left: 40%; top: 3%; width: 20%;">Pixel Arena</h1><br><h2 style="text-align: center; position: fixed; z-index: 1; left: 40%; top: 10%; width: 20%;">Game paused</h2><br><button style="left: 40%; width: 20%; top: 25%" onclick="PointerLock.lock();paused=false;"><h1>resume</h1></button><button style="left: 40%; width: 20%; top: 35%" onclick="document.getElementById('settings').style.display='block';"><h1>settings</h1></button><button style="left: 40%; width: 20%; top: 45%" onclick="if(!localStorage.disconnect) localStorage.disconnect = '0';localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1); location.reload()"><h1>disconnect</h1></button></div> 
+  <div id="pause"><h1 style="text-align: center; position: fixed; z-index: 1; left: 40%; top: 3%; width: 20%;">Pixel Arena</h1><br><h2 style="text-align: center; position: fixed; z-index: 1; left: 40%; top: 10%; width: 20%;">Game paused</h2><br><button style="left: 40%; width: 20%; top: 25%" onclick="PointerLock.lock();paused=false;"><h1>resume</h1></button><button style="left: 40%; width: 20%; top: 35%" onclick="document.getElementById('settings').style.display='block';"><h1>settings</h1></button><button style="left: 40%; width: 20%; top: 45%" onclick="if(!localStorage.disconnect); ws.close(); localStorage.disconnect = '0';localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1); location.reload()"><h1>disconnect</h1></button></div> 
   <div class="game_menu">
     <br>
     <h1 style="position: fixed; z-index: 1; left: 40%; top: 5%; width: 20%;">Pixel Arena</h1>
     <br>
     <button style="left: 33.3%; width: 33.3%; position: absolute; top: 20%" onclick=initialize()><h1>Join game</h1></button>
     <button style="left: 33.3%; width: 33.3%; position: absolute; top: 30%" onclick=showStats()><h1>Statistics</h1></button>
-    <button style="left: 33.3%; width: 33.3%; position: absolute; top: 40%" onclick="showPatchnotes();"><h1>Patchnotes</h1></button>
+    <button style="left: 33.3%; width: 16.65%; position: absolute; top: 40%" onclick="showPatchnotes();"><h1>Patchnotes</h1></button>
+    <button style="left: 49.92%; width: 16.65%; position: absolute; top: 40%" onclick="showDeveloperTools();"><h1>Developer Tools</h1></button>
     <div style="left: 33.3%; position: absolute; top: 61.5%; font-size: 150%">Username:</div>
     <input id="username" style="left: 41.625%; width: 24.975%; position: absolute; top: 60%; font-size: 200%;" placeholder="pick a name" maxlength="16"></input>
     <h3 id="version" style="position: fixed; left: 4%; top: 90%">version [version]</h3>
@@ -260,11 +276,13 @@
 </html>
 <script>
   var scene = new THREE.Scene();
+  var secondary_scene = new THREE.Scene();
   var textureLoader = new THREE.TextureLoader();
   var raycaster = new THREE.Raycaster;
   var FOV = 100;
   var materials = {};
   var camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+  var secondary_camera = new THREE.PerspectiveCamera(60);
   //moved renderer
   var geometry = new THREE.BoxGeometry();
   materials.defaultMaterial = new THREE.MeshBasicMaterial({map: textureLoader.load(missing)});
@@ -274,6 +292,9 @@
   var Sun = new THREE.DirectionalLight(0xffffff, 1, 1000);
   Sun.position.set(5,10,2);
   scene.add(Sun);
+  var secondary_Sun = Sun.clone();
+  secondary_Sun.position.set(0, 1, 1);
+  secondary_scene.add(secondary_Sun);
   Sun.CastShadow	= true;
   renderer.shadowMap.enabled = true;
   var AmbientLight = new THREE.AmbientLight(0x404040);
@@ -291,11 +312,13 @@
   clock = new THREE.Clock();
   document.addEventListener('contextmenu', event => event.preventDefault());
   camera.position.set(0, 16, 16);
-  camera.quaternion.set(eulerQuaternion([-45, 0, 0])[0], eulerQuaternion([-45, 0, 0])[1], eulerQuaternion([-45, 0, 0])[2], eulerQuaternion([-45, 0, 0])[3]);
+  camera.rotation.set(THREE.MathUtils.degToRad(-45), 0, 0);
   scene.add(camera);
+  secondary_camera.position.set(0, 0, 5);
   var paused = false;
   var players = {};
   var me = null;
+  var him = "he is always watching";
   var position = {x:0, y:2, z:0};
   var rotation = {x:0, y:0};
   var speed = 15;
@@ -334,17 +357,26 @@
   var canPause = false;
   var isScoping = false;
   var ping = 0;
-  var version = "1.0.0_alpha5";
+  var version = "1.0.0_beta1";
   var CONFIG_SERVER = window.CONFIG_SERVER || "localhost";
   var PROTOCOL = "ws";
   if(CONFIG_SERVER != "localhost") PROTOCOL = "wss";
-  function createMaterial(name) {
+  function createMaterial(name, base64) {
     if(materials[name]) return;
-    materials[name] = new THREE.MeshBasicMaterial({map: textureLoader.load("assets/textures/"+name+".png"), alphaTest: 0.95});
+    var texture = textureLoader.load((!base64&&"assets/textures/"||"")+name+(!base64&&".png"||""));
+    var test = new Image();
+    test.src = (!base64&&"assets/textures/"||"")+name+(!base64&&".png"||"");
+    test.onerror = function () {
+      texture.image = materials.defaultMaterial.map.image;
+      texture.needsUpdate = true;
+    }
+    materials[name] = new THREE.MeshBasicMaterial({map: texture, alphaTest: 0.95});
   }
   function preloadModel(name) {
     loader.load("assets/models/"+name+".glb", function(model){preload[name] = model.scene; preload[name].model = model; preload[name].animations = model.animations});
   }
+  
+  //preloads
   preloadModel("char");
   preloadModel("ak-47");
   preloadModel("pistol");
@@ -353,6 +385,7 @@
   createMaterial("decals/bullet_2");
   createMaterial("bullet/bullet");
   createMaterial("bullet/muzzle_flash");
+  
   Math.clamp = (num, min, max) => Math.min(Math.max(num, min), max);
   class Player {
     constructor(username, id) {
@@ -413,7 +446,38 @@
         this.collision.computeAABB();
         this.collision.updateMassProperties();
       }
+      this.setWeapon = function (data) {
+        this.weapon = THREE.SkeletonUtils.clone(preload[GAME_WEAPON_TYPES[data.weapon].model]);
+        this.weapon.animations = preload[GAME_WEAPON_TYPES[data.weapon].model].animations;
+        this.weapon.mixer = new THREE.AnimationMixer(this.weapon);
+        mixers.push(this.weapon.mixer);
+        this.weapon.reloadAnim = this.weapon.mixer.clipAction(THREE.AnimationClip.findByName(this.weapon.animations, "weapon.reload"));
+        this.weapon.reloadAnim.repetitions = 1;
+        var quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(0),THREE.MathUtils.degToRad(90),THREE.MathUtils.degToRad(175)));
+        this.weapon.quaternion.copy(quat);
+        this.weapon.quat = quat;
+        var this_ = this;
+        this.weapon.reload = function () {
+          this_.playAnimation("weapon.reload."+this_.weapon.type, true, false, 10000000);
+          if(this_.weapon.reloadAnim.isRunning()) return;
+          this_.weapon.reloadAnim.reset();
+          this_.weapon.reloadAnim.play();
+        }
+        this.weapon.type = data.weapon;
+        setTimeout(function () {
+          this_.character.children[0].children[0].children[0].children[2].children[0].children[0].children[0].add(this_.weapon);
+        }, 20);
+      }
       players[id] = this;
+    }
+    jump() {
+      raycaster.set(this.position, new THREE.Vector3(0, -1, 0));
+      var hit = raycaster.intersectObject(MAP);
+      if(hit[0] && hit[0].distance < 2.09) {
+        this.collision.velocity.y = 7.5;
+        ws.send(JSON.stringify({jump: true}));
+        this.jumping = true;
+      }
     }
     delete() {
       this.character.removeFromParent();
@@ -480,32 +544,15 @@
     _0xf01f1();
     return hit;
   }
-  function loadSky (texture) {
-    var textures = [];
-    for(var i = 0; i < arguments.length; i++) {
-      if(!arguments[i]) {
-        throw new Error;
-      }
-      a = new Image(16,16);
-      a.src="assets/textures/"+arguments[i];
-      textures.push(a);
-    }
-    if(textures.length == 1) {
-      textures = [textures[0], textures[0], textures[0], textures[0], textures[0], textures[0]];
-    }
-    scene.background = new THREE.CubeTexture(textures);
-    scene.background.needsUpdate = true;
-  }
   function mainLoop() {
-    if(ws.readyState == 3) {
-      error(reason || "The server you were in has gone down.");
-      if(!localStorage.disconnect) localStorage.disconnect = "0";
-      localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1);
-      return
+    //PAUSE SCREEN
+    if(!paused) {
+      renderer.render(scene, camera);
+      document.getElementById("pause").style.display = "none";
+    } else {
+      document.getElementById("pause").style.display = "block";
     }
-    
-    //GAME LOOP
-    requestAnimationFrame(mainLoop);
+    secondary_renderer.render(secondary_scene, secondary_camera);
     
     //CALCULATE DELTA
     delta = (Date.now() - lastUpdate) / 1000;
@@ -516,19 +563,58 @@
       mixer.update(delta);
     });
     
-    //PAUSE SCREEN
-    if(!paused) {
-      renderer.render(scene, camera);
-      document.getElementById("pause").style.display = "none";
-    } else {
-      document.getElementById("pause").style.display = "block";
+    //UPDATE CAMERA
+    camera.updateProjectionMatrix();
+    
+    //UPDATE PLAYERS
+    Object.values(players).forEach(function (player) {
+      /*
+      v = new THREE.Vector3();
+      q = new THREE.Quaternion();
+      player.weapon_bone.getWorldPosition(v);
+      player.weapon_bone.getWorldQuaternion(q);
+      q = quaternionEuler(q);
+      q[1] -= 90;
+      q[2] -= 180;
+      q = eulerQuaternion([q[0], q[1], q[2]]);
+      q = new THREE.Quaternion(q[0], q[1], q[2], q[3]);
+      //weapon position
+      if(player.weapon) {
+        //player.weapon.position.copy(v);
+        //player.weapon.quaternion.copy(q);
+      }
+      */
+      //nametag visibility
+      player.nameTag.visible = settings.nametags;
+      
+      //hitbox size
+      player.hitbox.scale.set(player.collision.shapes[0].halfExtents.x*2, player.collision.shapes[0].halfExtents.y*2, player.collision.shapes[0].halfExtents.z*2);
+    
+      //hitbox visibility
+      player.hitbox.visible = settings.hitbox && (player != players[me] || settings.thirdPerson);
+    });
+    
+    //CHECK WEBSOCKET
+    if(window.ws && ws.readyState == 3) {
+      error(reason || "The server you were in has gone down.");
+      if(!localStorage.disconnect) localStorage.disconnect = "0";
+      localStorage.disconnect = JSON.stringify(Number(localStorage.disconnect)+1);
+      return;
+    }
+    
+    //GAME LOOP
+    requestAnimationFrame(mainLoop);
+    
+    //ONLY CONTINUE IF IN GAME
+    if(!window.ws || ws.readyState != 1) {
+      return;
     }
     
     //UPDATE SETTINGS
     settings.thirdPerson = document.getElementById("third_person").checked;
     settings.nametags = document.getElementById("nametags").checked;
     settings.ping = document.getElementById("ping").checked;
-    settings.sounds = settings.sounds;
+    settings.sounds = document.getElementById("sounds").checked;
     settings.FOV = document.getElementById("fov").value;
     settings.arms = document.getElementById("arms").checked;
     
@@ -547,35 +633,10 @@
     document.getElementById("leaderboard").style.display = "block";
     username = document.getElementById("username").value;
     document.getElementById("ping_text").style.display = (settings.ping && "block") || "none";
-    camera.updateProjectionMatrix();
     if(ws.readyState == 1) ws.send(JSON.stringify({x: position.x, y: position.y, z: position.z, rx: rotation.x, ry: rotation.y, username: username, walking: walking, crouch: crouch, weapon: current_weapon, ping: Date.now()}));
     if(!camera.fov) camera.fov = 100;
     var list = Object.values(players).sort(function (a,b){
         return b.kills - a.kills; 
-    });
-    Object.values(players).forEach(function (player) {
-      v = new THREE.Vector3();
-      q = new THREE.Quaternion();
-      player.weapon_bone.getWorldPosition(v);
-      player.weapon_bone.getWorldQuaternion(q);
-      q = quaternionEuler(q);
-      q[1] -= 90;
-      q[2] -= 180;
-      q = eulerQuaternion([q[0], q[1], q[2]]);
-      q = new THREE.Quaternion(q[0], q[1], q[2], q[3]);
-      //weapon position
-      if(player.weapon) {
-        //player.weapon.position.copy(v);
-        //player.weapon.quaternion.copy(q);
-      }
-      //nametag visibility
-      player.nameTag.visible = settings.nametags;
-      
-      //hitbox size
-      player.hitbox.scale.set(player.collision.shapes[0].halfExtents.x*2, player.collision.shapes[0].halfExtents.y*2, player.collision.shapes[0].halfExtents.z*2);
-    
-      //hitbox visibility
-      player.hitbox.visible = settings.hitbox && (player != players[me] || settings.thirdPerson);
     });
     try {
       if(list[0].kills == 0) {
@@ -640,12 +701,13 @@
       position.x = players[me].collision.position.x
       position.y = players[me].collision.position.y
       position.z = players[me].collision.position.z
-      rotation.x = quaternionEuler(camera.quaternion)[0];
-      rotation.y = quaternionEuler(camera.quaternion)[1];
+      camera.rotation.order="YXZ";
+      rotation.x = THREE.MathUtils.radToDeg(camera.rotation.x);
+      rotation.y = THREE.MathUtils.radToDeg(camera.rotation.y);
       camera.position.set(players[me].collision.position.x+camera_damage, players[me].collision.position.y+player_height/2.6+(Math.sin(camera_bobbing)/10)+camera_damage, players[me].collision.position.z+camera_damage);
-      if(settings.thirdPerson) camera.position.addScaledVector(new THREE.Vector3(0, 0, settings.thirdPersonZoom).applyQuaternion(camera.quaternion), 5)
-      var temporaryEuler0 = eulerQuaternion([0, quaternionEuler(camera.quaternion)[1], 0]);
-      var temporaryEuler = new THREE.Vector3((players[me].movement[3] - players[me].movement[2]) * speed, 0, (players[me].movement[1] - players[me].movement[0]) * speed).applyQuaternion(new THREE.Quaternion(temporaryEuler0[0], temporaryEuler0[1], temporaryEuler0[2], temporaryEuler0[3]));
+      if(settings.thirdPerson) camera.position.addScaledVector(new THREE.Vector3(0, 0, settings.thirdPersonZoom).applyQuaternion(camera.quaternion), 5)      
+      var temporaryEuler0 = new THREE.Euler(0, camera.rotation.y, 0);
+      var temporaryEuler = new THREE.Vector3((players[me].movement[3] - players[me].movement[2]) * speed, 0, (players[me].movement[1] - players[me].movement[0]) * speed).applyQuaternion(new THREE.Quaternion().setFromEuler(temporaryEuler0));
       players[me].collision.velocity = new CANNON.Vec3(temporaryEuler.x, players[me].collision.velocity.y, temporaryEuler.z);
       if(players[me].jumping) {
         speed = 8;
@@ -682,12 +744,12 @@
       };
       players[me].updateCollision();
  
-      var rot_01 = eulerQuaternion([0, 0, rotation.x]);
-      var rot2_01 = eulerQuaternion([0, rotation.y+90, 0]);
       //head rotation
-      if(players[me].health > 0) players[me].character.children[0].children[0].children[0].children[0].quaternion.set(rot_01[0], rot_01[1], rot_01[2], rot_01[3]);
+      players[me].character.children[0].children[0].children[0].children[0].rotation.order="YXZ";
+      if(players[me].health > 0) players[me].character.children[0].children[0].children[0].children[0].rotation.z = THREE.MathUtils.degToRad(rotation.x);
       //body rotation
-      if(players[me].health > 0) players[me].character.children[0].quaternion.set(rot2_01[0], rot2_01[1], rot2_01[2], rot2_01[3]);
+      players[me].character.children[0].rotation.order="YXZ";
+      if(players[me].health > 0) players[me].character.children[0].rotation.y = THREE.MathUtils.degToRad(rotation.y+90);
       //body position
       players[me].character.position.set(position.x, position.y, position.z);
       
@@ -697,8 +759,7 @@
       } else {
         camera.add(players[me].character);
         players[me].character.position.set(0, -1.5, 0);
-        var tmp_rot = eulerQuaternion([0, 90, 0]);
-        players[me].character.children[0].quaternion.set(tmp_rot[0], tmp_rot[1], tmp_rot[2], tmp_rot[3]);
+        players[me].character.children[0].rotation.y = 1.57079632679;
         players[me].character.children[0].children[0].children[0].children[0].scale.set(0,0,0);
       }
     }
@@ -822,9 +883,8 @@
     return sound;
   }
   function offset_camera(x,y,z) {
-    var a = quaternionEuler(camera.quaternion);
-    var e = eulerQuaternion([Math.clamp(a[0]+(x||0), -90, 90), a[1]+(y||0), a[2]+(z||0)]);
-    camera.quaternion.set(e[0], e[1], e[2], e[3]);
+    camera.rotation.copy(new THREE.Euler(Math.clamp(camera.rotation.x+THREE.MathUtils.degToRad(x||0), -Math.PI/2, Math.PI/2), camera.rotation.y+THREE.MathUtils.degToRad(y||0), camera.rotation.z+THREE.MathUtils.degToRad(z||0)));
+    camera.rotation.order = "YXZ";
   }
   function recoil(a) {
     var counter = 0;
@@ -865,6 +925,8 @@
     p.style.height="50%";
     e.appendChild(p);
     
+    //v1.0.0_beta1
+    p.innerHTML += "<b>version 1.0.0_beta1</b> - Overhauled the map system, overhauled the menu, added an integrated server for client-side testing, cleaned up and improved game's code (including the crappy math), improved server admin commands and configuration file, and added an ENITRE UNITY-LIKE MAP EDITOR COMPLETE WITH IMPORTING, EXPORTING, SAVING, LOADING, UNDO AND REDO!!!<br>";
     //v1.0.0_alpha5
     p.innerHTML += "<b>version 1.0.0_alpha5</b> - Added a skybox, improved the map system, overhauled the first person perspective, improved the HUD, added hitbox view (\\), added more admin commands, great physics improvements for playability on slower devices, as well as an invisible wall to prevent the anticheat from falsely flagging people.<br>";
     //v1.0.0_alpha4
@@ -879,9 +941,47 @@
     e.innerHTML = "<iframe src='stats.html' style='width:100%; height: 100%; border: none;' scrolling='no'></iframe>";
     e.style.height = "50%";
   }
-  function initialize() {
+  function showDeveloperTools () {
+    var e = error("");
+    e.childNodes[0].innerHTML = "Developer Tools";
+    e.childNodes[1].onclick = function () {
+      e.outerHTML = "";
+    }
+    e.style.height="40%"
+    var p = document.createElement("p");
+    p.style.height="50%";
+    e.appendChild(p);
+    p.innerHTML = "<a href='editor.html' target='_blank'><button style='width: 20%; margin-left:-10%'><h1>Map Editor</h1></button></a><button style='width: 20%; margin-left:-10%; margin-top: 5%;' onclick='this.parentElement.parentElement.children[1].click();showIntegratedServer();'><h1>Integrated Server</h1></button>";
+  }
+  function showIntegratedServer () {
+    var e = error("");
+    e.childNodes[0].innerHTML = "Integrated Server";
+    e.childNodes[1].onclick = function () {
+      e.outerHTML = "";
+    }
+    e.style.height="40%"
+    var p = document.createElement("p");
+    p.style.height="50%";
+    e.appendChild(p);
+    p.innerHTML = "<div><input type='checkbox' id='consoleEnabled' checked=true></input>Console window</div><button style='width: 20%; margin-left:-10%; margin-top: 5%' onclick='initialize(integrated_server.init(!document.getElementById(`consoleEnabled`).checked));this.parentElement.parentElement.children[1].click();'><h3>Start integrated server</h3></button>";
+  }
+  function createMenuPlayer() {
+    var player = new Player("", him);
+    player.character.rotation.y = -1.57079632679;
+    player.playAnimation("char.idle");
+    player.character.children[1].visible = false;
+    player.character.rotation.y = 5;
+    secondary_scene.add(players[him].character);
+    return player;
+  }
+  function initialize(server) {
     document.getElementsByClassName("loading")[0].style.display = "block";
-    window.ws = new WebSocket(PROTOCOL+'://'+CONFIG_SERVER+':7071/ws');
+    if(!server) {
+      window.ws = new WebSocket(PROTOCOL+'://'+CONFIG_SERVER+':7071/ws');
+    } else {
+      window.ws = server;
+    }
+    secondary_renderer.domElement.style.display = "none";
     ws.onerror = function () {
       error("The server that you tried to connect to has gone down.");
       if(!localStorage.disconnect) localStorage.disconnect = "0";
@@ -1007,7 +1107,7 @@
       if(data.respawn) {
         if(data.respawn == me) canPause = false;
         players[data.respawn].stopAnimation("char.death");
-        players[data.respawn].weapon && players[data.respawn].weapon.quaternion.set(players[data.respawn].weapon.quat[0], players[data.respawn].weapon.quat[1], players[data.respawn].weapon.quat[2], players[data.respawn].weapon.quat[3]);
+        players[data.respawn].weapon && players[data.respawn].weapon.quaternion.copy(players[data.respawn].weapon.quat);
         return
       }
       if(data.teleport) {
@@ -1018,6 +1118,10 @@
       if(data.pong) {
         ping = Date.now() - data.pong;
         document.getElementById("ping_text").innerHTML = ping+" ms ping"
+        return;
+      }
+      if(data.map) {
+        loadMap(data.map);
         return;
       }
       me = data.me;
@@ -1085,25 +1189,7 @@
           player.weapon.removeFromParent();
         }
         if(doContinue) {
-          player.weapon = THREE.SkeletonUtils.clone(preload[GAME_WEAPON_TYPES[data.weapon].model]);
-          player.weapon.animations = preload[GAME_WEAPON_TYPES[data.weapon].model].animations;
-          player.weapon.mixer = new THREE.AnimationMixer(player.weapon);
-          mixers.push(player.weapon.mixer);
-          player.weapon.reloadAnim = player.weapon.mixer.clipAction(THREE.AnimationClip.findByName(player.weapon.animations, "weapon.reload"));
-          player.weapon.reloadAnim.repetitions = 1;
-          var quat = eulerQuaternion([5,90,175]);
-          player.weapon.quaternion.set(quat[0], quat[1], quat[2], quat[3]);
-          player.weapon.quat = quat;
-          player.weapon.reload = function () {
-            player.playAnimation("weapon.reload."+player.weapon.type, true, false, 10000000);
-            if(player.weapon.reloadAnim.isRunning()) return;
-            player.weapon.reloadAnim.reset();
-            player.weapon.reloadAnim.play();
-          }
-          player.weapon.type = data.weapon;
-          setTimeout(function () {
-            player.character.children[0].children[0].children[0].children[2].children[0].children[0].children[0].add(player.weapon);
-          }, 20);
+          player.setWeapon(data);
         }
         //player.weapon.visible = (player.health > 0);
         if(player.health > 0) {
@@ -1113,20 +1199,19 @@
         }
       }
       player.kills = data.kills;
-      var rot = eulerQuaternion([0, 0, data.rx]);
-      var rot2 = eulerQuaternion([0, data.ry+90, 0]);
       if(data.sender != me) {
         //head rotation
-        if(player.health > 0) player.character.children[0].children[0].children[0].children[0].quaternion.set(rot[0], rot[1], rot[2], rot[3]);
+        player.character.children[0].children[0].children[0].children[0].rotation.order="YXZ";
+        if(player.health > 0) player.character.children[0].children[0].children[0].children[0].rotation.z = THREE.MathUtils.degToRad(data.rx);
         //body rotation
-        if(player.health > 0) player.character.quaternion.set(rot2[0], rot2[1], rot2[2], rot2[3]);
+        player.character.rotation.order="YXZ";
+        if(player.health > 0) player.character.rotation.y = THREE.MathUtils.degToRad(data.ry+90);
         //body position
         player.character.position.set(data.x, data.y, data.z);
       }
       player.position.set(data.x, data.y, data.z);
     }
     ws.onopen = function () {
-      mainLoop();
       if(!localStorage.joins) localStorage.joins = "0";
       localStorage.joins = JSON.stringify(Number(localStorage.joins)+1);
       inGame = true;
@@ -1139,7 +1224,7 @@
     settings.ping = localStorage.ping == "true";
     settings.sounds = localStorage.sounds == "true" || (localStorage.sounds != "true" && localStorage.sounds != "false");
     settings.FOV = Number(localStorage.fov) || 100;
-    settings.arms = localStorage.arms == "true";
+    settings.arms = localStorage.arms == "true" || (localStorage.sounds != "true" && localStorage.sounds != "false");
     
     //apply them on the menu
     document.getElementById("third_person").checked = settings.thirdPerson;
@@ -1184,6 +1269,28 @@
   onload = function () {
     document.getElementById("username").value = "player"+Math.round(Math.random()*1000);
     renderer.render(scene, camera);
+    createMenuPlayer();
+    mainLoop();
+    //load map
+    ///////////////////////
+     loadMap(window.CONFIG_MAP || "map_arena")
+    ///////////////////////
+    
+    //initialization arguments
+    var arguments_ = new URLSearchParams(location.search);
+    var noconsole = false;
+    var server_copy_client_map = false;
+    if(arguments_.get("noconsole")) {
+      noconsole = JSON.parse(arguments_.get("noconsole"));
+    }
+    if(arguments_.get("server_copy_client_map")) {
+      server_copy_client_map = JSON.parse(arguments_.get("server_copy_client_map"));
+    }
+    if(arguments_.get("integrated_server")) {
+      initialize(integrated_server.init(noconsole));
+      //force server to load our map if wanted
+      server_copy_client_map && setTimeout(function(){integrated_server.server.worker.postMessage(JSON.stringify({eval: "loadMap("+JSON.stringify(JSON.stringify(map_data))+", scene, geometry);"}))}, 1000);
+    }
   }
   document.onkeydown = function (key) {
     if(!inGame || dead) return
@@ -1211,13 +1318,7 @@
       players[me].movement[3] = 1;
     }
     if(key.key == " ") {
-      raycaster.set(players[me].position, new THREE.Vector3(0, -1, 0));
-      var hit = raycaster.intersectObject(scene.children[3]);
-      if(hit[0] && hit[0].distance < 2.09) {
-        players[me].collision.velocity.y = 7.5;
-        ws.send(JSON.stringify({jump: me}));
-        players[me].jumping = true;
-      }
+      players[me].jump();
     }
     if(key.code == "ShiftLeft") {
       crouch = true;
@@ -1265,6 +1366,14 @@
       crouch = false;
     }
   }
+  secondary_renderer.domElement.onmouseover = function() {
+    players[him].setWeapon({weapon: Object.keys(GAME_WEAPON_TYPES)[Math.floor(Math.random()*Object.values(GAME_WEAPON_TYPES).length)]});
+    players[him].playAnimation("weapon.hold."+players[him].weapon.type,false,false,1000);
+  }
+  secondary_renderer.domElement.onmouseleave = function() {
+    players[him].weapon.removeFromParent();
+    players[him].stopAnimation("weapon.hold."+players[him].weapon.type);
+  }
   window.addEventListener('resize', function (){
       camera.aspect = window.innerWidth / window.innerHeight;
       renderer.setSize( window.innerWidth, window.innerHeight );
@@ -1280,7 +1389,4 @@
   }
   console.log("PIXEL ARENA "+version);
   document.getElementById("version").innerHTML = "version "+version;
-  ///////////////////////
-   loadMap("map_arena")
-  ///////////////////////
 </script>
