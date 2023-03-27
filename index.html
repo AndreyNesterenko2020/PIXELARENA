@@ -357,7 +357,7 @@
   var canPause = false;
   var isScoping = false;
   var ping = 0;
-  var version = "1.0.0_beta1";
+  var version = "1.0.0_beta1_01";
   var CONFIG_SERVER = window.CONFIG_SERVER || "localhost";
   var PROTOCOL = "ws";
   if(CONFIG_SERVER != "localhost") PROTOCOL = "wss";
@@ -633,7 +633,6 @@
     document.getElementById("leaderboard").style.display = "block";
     username = document.getElementById("username").value;
     document.getElementById("ping_text").style.display = (settings.ping && "block") || "none";
-    if(ws.readyState == 1) ws.send(JSON.stringify({x: position.x, y: position.y, z: position.z, rx: rotation.x, ry: rotation.y, username: username, walking: walking, crouch: crouch, weapon: current_weapon, ping: Date.now()}));
     if(!camera.fov) camera.fov = 100;
     var list = Object.values(players).sort(function (a,b){
         return b.kills - a.kills; 
@@ -764,6 +763,10 @@
       }
     }
     world.step(Math.clamp(delta, 0, 0.6));
+  }
+  function packetLoop() {
+    if(ws.readyState == 1) ws.send(JSON.stringify({x: position.x, y: position.y, z: position.z, rx: rotation.x, ry: rotation.y, username: username, walking: walking, crouch: crouch, weapon: current_weapon, ping: Date.now()}));
+    setTimeout(packetLoop, 1000/60);
   }
   function error (errormessage) {
     inGame = false;
@@ -982,6 +985,7 @@
       window.ws = server;
     }
     secondary_renderer.domElement.style.display = "none";
+    packetLoop();
     ws.onerror = function () {
       error("The server that you tried to connect to has gone down.");
       if(!localStorage.disconnect) localStorage.disconnect = "0";
@@ -1367,12 +1371,14 @@
     }
   }
   secondary_renderer.domElement.onmouseover = function() {
+    players[him].weapon && secondary_renderer.domElement.onmouseleave;
     players[him].setWeapon({weapon: Object.keys(GAME_WEAPON_TYPES)[Math.floor(Math.random()*Object.values(GAME_WEAPON_TYPES).length)]});
     players[him].playAnimation("weapon.hold."+players[him].weapon.type,false,false,1000);
   }
   secondary_renderer.domElement.onmouseleave = function() {
     players[him].weapon.removeFromParent();
     players[him].stopAnimation("weapon.hold."+players[him].weapon.type);
+    players[him].weapon = undefined;
   }
   window.addEventListener('resize', function (){
       camera.aspect = window.innerWidth / window.innerHeight;

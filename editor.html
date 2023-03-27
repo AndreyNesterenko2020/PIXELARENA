@@ -152,7 +152,7 @@
     </div>
     <div class="contextmenu" id="dropdown.texture" style="bottom: 32.5%; right: 21.25%; width: 15%">
       <div onclick="editor.getUpload(function(e){var a = new FileReader(); a.readAsDataURL(e[0]); a.onload=function(e2){editor.MAP_DATA.assets[e[0].name.split('.')[0]]=a.result;editor.processImage(e)}}, 'png');"><a>Import from computer</a></div>
-      <div onclick="editor.getFileFromGame('png', 'assets/textures', function(e){editor.createTexture(e, e.split(e.includes('textures/map') && 'assets/textures/map/' || 'assets/textures/')[1].split('.')[0])});"><a>Import from game</a></div>
+      <div onclick="editor.getFileFromGame('png', 'assets/textures', function(e){editor.createTexture(e, e.split(e.includes('textures/map') && 'assets/textures/map/' || e.includes('assets/maps/') && 'assets/maps/' || 'assets/textures/')[1].split('.')[0])});"><a>Import from game</a></div>
     </div>
     <div id="top">
       <div id="buttons">
@@ -777,7 +777,7 @@
           e.contentDocument.body.children[0].outerHTML = "";
         }
         function wait() {
-          if(e.contentWindow.location.href.split(".")[1] == type) {
+          if(e.contentWindow.location.href.split("/")[e.contentWindow.location.href.split("/").length-1].split(".")[1] == type) {
             callback(e.contentWindow.location.href);
             window_.close();
           }
@@ -1316,7 +1316,7 @@
       }
       editor.triggerHelp = function() {
         var help = new editor.Window(550, 400, 505, 200, "Help");
-        help.windowContents.innerHTML = "<br><h4>Pixel Arena Map Editor help</h4>Shortcuts<br>Ctrl a - select all<br>Ctrl s - save<br>Ctrl o - open<br>Ctrl n - new<br>Ctrl c - copy<br>Ctrl v - paste<br><br>Editors<br>Map editor - transform and edit map's obects<br>Bound editor - edit map's boundaries, if a player ends up outside of these boundaries, the anticheat will kick them<br>Skybox editor - configure the map's skybox<br>Play test - run the game with your map";
+        help.windowContents.innerHTML = "<br><h4>Pixel Arena Map Editor help</h4><b>Shortcuts</b><br>Ctrl a - select all<br>Ctrl s - save<br>Ctrl o - open<br>Ctrl n - new<br>Ctrl c - copy<br>Ctrl v - paste<br>Ctrl z - undo<br>Ctrl y - redo<br><br><b>Editors</b><br>Map editor - transform and edit map's obects<br>Bound editor - edit map's boundaries, if a player ends up outside of these boundaries, the anticheat will kick them<br>Skybox editor - configure the map's skybox<br>Play test - run the game with your map";
       }
       editor.triggerDelete = function(map, confirm) {
         if(confirm) {
