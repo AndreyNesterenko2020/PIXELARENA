@@ -37,6 +37,11 @@ integrated_server.modules = {
       integrated_server.readlines.push(readline);
       return this;
     }
+  },
+  fs: {
+    readFileSync: function () {
+      return false
+    }
   }
 }
 

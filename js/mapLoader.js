@@ -79,8 +79,8 @@ loadMap = async function (NAME, scene_, geometry_) {
         }
         textureChecks(object, finish);
         function finish(path){
-          createMaterial((path.split("assets/textures/")[1]||"")+object.texture, object.texture.includes("data:"));
-          mesh.material = materials[(path.split("assets/textures/")[1]||"")+object.texture];
+          createMaterial((!object.texture.includes("data:") && (path.replace("assets/textures/", "").replace("assets/maps/", "../maps/")) || "")+object.texture, object.texture.includes("data:"));
+          mesh.material = materials[(!object.texture.includes("data:") && (path.replace("assets/textures/", "").replace("assets/maps/", "../maps/")) || "")+object.texture];
         }
       }
     });

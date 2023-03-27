@@ -44,9 +44,9 @@ function defineUtilities() {
       !result1 && (globalThis['editor'] || globalThis).testTexture("assets/textures/"+object.texture+".png", function(result2){
         path = "assets/textures/";
         !result2 && (globalThis['editor'] || globalThis).testTexture(object.texture+".png", function(result3){
+          path = "";
           !result3 && (globalThis['editor'] || globalThis).testTexture("assets/maps/"+object.texture+".png", function(result4){
             path = "assets/maps/";
-            if(!result4) path = "";
             finish(path);
           });
           result3 && finish(path);
@@ -65,17 +65,24 @@ function defineUtilities() {
       if(!arguments[i]) {
         throw new Error;
       }
-      a = new Image(16,16);
+      var a = new Image(16,16);
       a.src="assets/textures/"+arguments[i];
       textures.push(a);
     }
     if(textures.length == 1) {
       textures = [textures[0], textures[0], textures[0], textures[0], textures[0], textures[0]];
     }
-    textures[arguments.length-1].onload = function () {
-    scene.background = new THREE.CubeTexture(textures);
-    scene.background.needsUpdate = true;
-    }
+    var loaded = 0;
+    var arguments_ = arguments;
+    textures.forEach(function (texture) {
+      texture.onload = function () {
+        loaded++;
+        if(loaded == arguments_.length) {
+          scene.background = new THREE.CubeTexture(textures);
+          scene.background.needsUpdate = true;
+        }
+      }
+    });
   }
 }
 
