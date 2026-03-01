@@ -81,7 +81,7 @@ onmessage = function (data) {
       e.response(JSON.parse(data.data).input);
     });
   }
-  if(JSON.parse(data.data).eval) {
-    eval(JSON.parse(data.data).eval);
+  if(JSON.parse(data.data).loadMap) {
+    loadMap(JSON.parse(data.data).loadMap)
   }
 }

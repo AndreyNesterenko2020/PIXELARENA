@@ -2,17 +2,26 @@ try {
   THREE = require('three');
   fs = require('fs');
 } catch (e) {}
+
 default_map_limits = [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity];
-loadMap = async function (NAME, scene_, geometry_) {
-  var scene = scene_ || window.scene;
-  var geometry = geometry_ || window.geometry;
+
+loadMap = async function (NAME) {
+  //this map is already loaded, return
+  if(globalThis.map_name == NAME) return;
+
+  var scene = threeJs.scene;
+  var geometry = threeJs.geometry;
+  
   globalThis.map_data = false;
+  globalThis.map_name = NAME;
+  
   var special_case = false;
   try {
     special_case = JSON.parse(NAME, function (k,v){if(v=="-Infinity"){return -Infinity};if(v=="Infinity"){return Infinity};return v});
   } catch(e){}
-  get_json(typeof WorkerGlobalScope == "undefined" && "assets/maps/"+NAME+".MAP" || "../assets/maps/"+NAME+".MAP", function(a,e){
-    map_data = typeof e == "object" && e || JSON.parse(e, function (k,v){if(v=="-Infinity"){return -Infinity};if(v=="Infinity"){return Infinity};return v}) || special_case;
+  
+  (special_case ? function(a,b){b(undefined,undefined)} : get_json)(typeof WorkerGlobalScope == "undefined" && "assets/maps/"+NAME+".MAP" || "../assets/maps/"+NAME+".MAP", function(a,e){
+    map_data = typeof e == "object" ? e : special_case;
     if(!e && !special_case) return false;
     //skybox
     setTimeout(function() {
@@ -27,7 +36,7 @@ loadMap = async function (NAME, scene_, geometry_) {
     }, 50);
     if(globalThis.MAP) {
       globalThis.MAP.collisions.forEach(function (collision) {
-        world.remove(collision);
+        physics.world.remove(collision);
       });
       globalThis.MAP.removeFromParent();
       globalThis.MAP = undefined;
@@ -40,11 +49,11 @@ loadMap = async function (NAME, scene_, geometry_) {
     map_group.objects = [];
     map_data.objects.forEach(function (object) {
       if(object[0]) return;
-      var mesh = new THREE.Mesh(object_types[object.type] && object_types[object.type].geometry || geometry, object_types[object.type] && !object_types[object.type].textured && object_types[object.type].material || undefined);
+      var mesh = new THREE.Mesh(object_types[object.type||"box"] && object_types[object.type||"box"].geometry || geometry, object_types[object.type||"box"] && !object_types[object.type||"box"].textured && object_types[object.type||"box"].material || undefined);
       mesh.position.set(object.position.x, object.position.y, object.position.z);
       mesh.rotation.set(object.rotation.x*0.017453292519943295, object.rotation.y*0.017453292519943295, object.rotation.z*0.017453292519943295);
       mesh.scale.set(object.scale.x, object.scale.y, object.scale.z);
-      if(!(object.invisible || (typeof CANNON == "undefined" && object.unHittable))) map_group.add(mesh);
+      if(typeof CANNON == "undefined" ? !object.unHittable : !object.invisible) map_group.add(mesh);
       var material = object.material;
       if(!object.material) {
         material = "concrete";
@@ -55,32 +64,38 @@ loadMap = async function (NAME, scene_, geometry_) {
       map_group.objects.push(mesh);
       if(typeof CANNON != "undefined") {
         if(object.collidable) {
-          collision = new CANNON.Body({mass: 0, material: collisionMaterial});
+          collision = new CANNON.Body({mass: 0, material: physics.collisionMaterial});
           var rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(object.rotation.x*0.017453292519943295, object.rotation.y*0.017453292519943295, object.rotation.z*0.017453292519943295));
           collision.quaternion.copy(rotation);
           collision.position.set(object.position.x, object.position.y, object.position.z);
           collision.addShape(new CANNON.Box(new CANNON.Vec3(object.scale.x/2, object.scale.y/2, object.scale.z/2)));
-          world.add(collision);
+          physics.world.add(collision);
           map_group.collisions.push(collision);
         }
       }
       if(typeof createMaterial != "undefined") {
-        if(object_types[object.type] && !object_types[object.type].textured) return;
-        setTimeout(function() {
+        if(object_types[object.type||"box"] && !object_types[object.type||"box"].textured) return;
+        var a = function() {
           mesh.material.color = new THREE.Color(object.color);
           if(!mesh.material.map) return;
           mesh.material.map.needsUpdate = true;
           mesh.material.map.repeat.x = object.texture_stretch && object.texture_stretch[0] || 1;
           mesh.material.map.repeat.y = object.texture_stretch && object.texture_stretch[1] || 1;
           mesh.material.map.wrapS=mesh.material.map.wrapT=THREE.RepeatWrapping;
-        }, 100);
+        }
         if(!object.texture) {
+          a();
           return;
         }
         textureChecks(object, finish);
         function finish(path){
-          createMaterial((!object.texture.includes("data:") && (path.replace("assets/textures/", "").replace("assets/maps/", "../maps/")) || "")+object.texture, object.texture.includes("data:"));
-          mesh.material = materials[(!object.texture.includes("data:") && (path.replace("assets/textures/", "").replace("assets/maps/", "../maps/")) || "")+object.texture];
+          createTextureImage((!object.texture.includes("data:") && (path.replace("assets/textures/", "").replace("assets/maps/", "../maps/")) || "")+object.texture, object.texture.includes("data:"));
+          mesh.material = object_types[object.type||"box"].material.clone();
+          mesh.material.map = new THREE.Texture(threeJs.textureImages[(!object.texture.includes("data:") && (path.replace("assets/textures/", "").replace("assets/maps/", "../maps/")) || "")+object.texture]);
+          mesh.material.map.needsUpdate = true;
+          
+          //
+          a();
         }
       }
     });
