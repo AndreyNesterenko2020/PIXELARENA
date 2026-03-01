@@ -8,6 +8,7 @@
     <script src="js/GLTFLoader.js"></script>
     <script src="js/jszip.js"></script>
     <script src="js/map_utilities.js"></script>
+    <script src="js/missing.js"></script>
     <style>
       @font-face {
         font-family: BlockBuilder3D;
@@ -75,6 +76,7 @@
         background-size: 100% 100%;
         border: solid black 1px;
         filter: brightness(85%);
+        overflow-y: auto !important
       }
       .contextmenu {
         position: fixed;
@@ -122,7 +124,7 @@
     <input type="file" id="fileUploader" style="display: none;">
     <a download id="fileDownloader" style="display: none;">
     <div class="contextmenu">
-      <div onclick="if(this.parentElement.target.tagName != 'IMG'){editor.undoableDeleteObject(editor.selected)}else{var this_ = this; var texture = editor.TEXTURES.find(function(a) {return a.name == this_.parentElement.target.parentElement.children[1].innerHTML});delete editor.MAP_DATA.assets[this_.parentElement.target.parentElement.children[1].innerHTML]; editor.TEXTURES.splice(editor.TEXTURES.indexOf(texture), 1)}"><a>Delete</a></div>
+      <div onclick="if(this.parentElement.target.tagName != 'IMG'){editor.undoableDeleteObject(editor.selected)}else{var this_ = this; var texture = editor.TEXTURES.find(function(a) {return a.name == this_.parentElement.target.parentElement.children[1].childNodes[0].textContent});delete editor.MAP_DATA.assets[this_.parentElement.target.parentElement.children[1].childNodes[0].textContent]; editor.TEXTURES.splice(editor.TEXTURES.indexOf(texture), 1);var used = [];editor.objects.forEach(function (params) {if(params.TEXTURE==texture.name){used.push(params);}});if(used.length<2)return;var win = new editor.Window(400,210,300,300,'Texture removal');win.windowContents.innerHTML='<br><br>You just deleted texture \''+texture.name+'\', and it was used in '+used.length+' objects. Would you like to set another texture for them?<br><br><div style=text-align:center >New texture to apply to all affected objects: <select id=texture_list2 ></select><br><br><button id=applytoaffected ><h4>Apply to affected</h4></button><button id=nothing ><h4>Do nothing</h4></button></div>';editor.TEXTURES.forEach(function(e){document.getElementById('texture_list2').innerHTML+='<option>'+(e.name.replace('<','\u{00000000026}lt'))+'</option>';});document.getElementById('texture_list2').value='<none>';document.getElementById('applytoaffected').onclick=function(){var newvalue = document.getElementById('texture_list2').value;new editor.Command(function(){var this_ = this;used.forEach(function(used,f){used.TEXTURE = texture.name})},function(){used.forEach(function(used){used.TEXTURE=newvalue;})});win.close();};document.getElementById('nothing').onclick=function(){win.close()}}"><a>Delete</a></div>
       <div onclick="document.getElementsByClassName('UIElement')[1].children[2].children[1].focus();"><a>Rename</a></div>
       <div onclick="editor.triggerCopy();"><a>Copy</a></div>
     </div>
@@ -135,8 +137,8 @@
       <div onclick="editor.getFileFromGame('MAP', 'assets/maps', function(e){editor.LOAD(e, 2)}, 'map');"><a>Import from game</a></div>
     </div>
     <div class="contextmenu" id="dropdown.edit" style="top: 2.5%; left: 2%">
-      <div onclick="new editor.Command(function(){editor.deleteObject(this.obj);}, function(){this.obj = editor.createObject();editor.select([this.obj]);editor.hideTool = false;});"><a>Add cube object</a></div>
-      <div onclick="new editor.Command(function(){editor.deleteObject(this.obj);}, function(){this.obj = editor.createObject(false, 'spawn');[this.obj.INVISIBLE,this.obj.COLLIDABLE,this.obj.unHittable] = [true, false, true];editor.select([this.obj]);editor.hideTool = false;});"><a>Add spawn object</a></div>
+      <div onclick="new editor.Command(function(){editor.deleteObject(this.obj);editor.select(this.oldselected)}, function(){this.oldselected = this.oldselected || editor.selected.concat(); editor.deselect(editor.objects);this.obj = this.obj||editor.createObject();editor.reAddObject(this.obj);editor.select([this.obj]);editor.hideTool = false;});"><a>Add cube object</a></div>
+      <div onclick="new editor.Command(function(){editor.deleteObject(this.obj);editor.select(this.oldselected)}, function(){this.oldselected = this.oldselected || editor.selected.concat(); editor.deselect(editor.objects);this.obj = this.obj||editor.createObject(false, 'spawn');editor.reAddObject(this.obj);[this.obj.INVISIBLE,this.obj.COLLIDABLE,this.obj.unHittable] = [true, false, true];editor.select([this.obj]);editor.hideTool = false;});"><a>Add spawn object</a></div>
       <div onclick="editor.undoableDeleteObject(editor.selected);editor.hideTool = true;"><a>Delete</a></div>
       <div onclick="document.getElementsByClassName('UIElement')[1].children[2].children[1].focus();"><a>Rename</a></div>
       <div onclick="editor.triggerCopy();"><a>Copy</a></div>
@@ -145,14 +147,15 @@
     </div>
     <div class="contextmenu" id="dropdown.view" style="top: 2.5%; left: 4%; width: 18%">
       <div onclick="this.children[0].children[0].checked=!this.children[0].children[0].checked;editor.options.renderSky=!this.children[0].children[0].checked;editor.setMode(editor.MODE);"><a><input type="checkbox" onclick="this.parentElement.parentElement.click();"></input>Render sky only in skybox editor</a></div>
-      <div onclick="this.children[0].children[0].checked=!this.children[0].children[0].checked;editor.options.renderInvisible=this.children[0].children[0].checked;"><a><input type="checkbox" checked></input>Render invisible objects</a></div>
+      <div onclick="this.children[0].children[0].checked=!this.children[0].children[0].checked;editor.options.renderInvisible=this.children[0].children[0].checked;"><a><input type="checkbox" checked onclick="this.parentElement.parentElement.click();"></input>Render invisible objects</a></div>
     </div>
-    <div class="contextmenu" id="dropdown.help" style="top: 2.5%; left: 7%">
-      <div onclick="editor.triggerHelp();"><a>Get help...</a></div>
+    <div class="contextmenu" id="dropdown.help" style="top: 20px; left: 110px">
+      <div onclick="editor.triggerHelp1();"><a>Quick reference...</a></div>
+      <div onclick="editor.triggerHelp2();"><a>The basics</a></div>
     </div>
     <div class="contextmenu" id="dropdown.texture" style="bottom: 32.5%; right: 21.25%; width: 15%">
-      <div onclick="editor.getUpload(function(e){var a = new FileReader(); a.readAsDataURL(e[0]); a.onload=function(e2){editor.MAP_DATA.assets[e[0].name.split('.')[0]]=a.result;editor.processImage(e)}}, 'png');"><a>Import from computer</a></div>
-      <div onclick="editor.getFileFromGame('png', 'assets/textures', function(e){editor.createTexture(e, e.split(e.includes('textures/map') && 'assets/textures/map/' || e.includes('assets/maps/') && 'assets/maps/' || 'assets/textures/')[1].split('.')[0])});"><a>Import from game</a></div>
+      <div onclick="editor.getUpload(function(e){var name = e[0].name.split('.')[0];if(!editor.validateTextureName(name)){return};var a = new FileReader(); a.readAsDataURL(e[0]); a.onload=function(e2){editor.MAP_DATA.assets[name]=a.result;editor.processImage(e)}}, 'png');"><a>Import from computer</a></div>
+      <div onclick="editor.getFileFromGame('png', 'assets/textures', function(e){var name = e.split(e.includes('textures/map') && 'assets/textures/map/' || e.includes('assets/maps/') && 'assets/maps/' || 'assets/textures/')[1].split('.')[0];if(!editor.validateTextureName(name)){return};editor.createTexture(e, name)});"><a>Import from game</a></div>
     </div>
     <div id="top">
       <div id="buttons">
@@ -168,21 +171,23 @@
     <div id="main"></div>
     <script>
       //initialize THREE.js
-      var scene = new THREE.Scene();
-      var renderer = new THREE.WebGLRenderer();
-      var camera = new THREE.PerspectiveCamera();
-      camera.position.set(0, 2, -4)
-      var geometry = new THREE.BoxGeometry();
-      scene.background = new THREE.Color(0xffffff);
-      var textureLoader = new THREE.TextureLoader();
-      var PointerLockControls = new THREE.PointerLockControls(camera, renderer.domElement);
-      var FirstPersonControls = new THREE.FirstPersonControls(camera, renderer.domElement);
-      FirstPersonControls.movementSpeed = 5;
-      var raycaster = new THREE.Raycaster();
-      var mouse = new THREE.Vector2();
-      var loader = new THREE.GLTFLoader();
-      var light = new THREE.AmbientLight("white", 1);
-      scene.add(light);
+      const threeJs = {};
+      threeJs.scene = new THREE.Scene();
+      threeJs.renderer = new THREE.WebGLRenderer();
+      threeJs.camera = new THREE.PerspectiveCamera();
+      threeJs.camera.position.set(0, 2, 100)
+      threeJs.geometry = new THREE.BoxGeometry();
+      threeJs.scene.background = new THREE.Color(0xffffff);
+      threeJs.textureLoader = new THREE.TextureLoader();
+      threeJs.PointerLockControls = new THREE.PointerLockControls(threeJs.camera, threeJs.renderer.domElement);
+      threeJs.FirstPersonControls = new THREE.FirstPersonControls(threeJs.camera, threeJs.renderer.domElement);
+      threeJs.FirstPersonControls.movementSpeed = 5*4;
+      threeJs.raycaster = new THREE.Raycaster();
+      threeJs.mouse = new THREE.Vector2();
+      threeJs.loader = new THREE.GLTFLoader();
+      threeJs.light = new THREE.AmbientLight("white", 1);
+      threeJs.scene.add(threeJs.light);
+      threeJs.defaultMaterial = new THREE.MeshBasicMaterial({map: threeJs.textureLoader.load(missing)});
       
       //map editor logic
       var editor = {};
@@ -215,9 +220,10 @@
       editor.currentFileName = "";
       editor.history = {};
       editor.selectionGroup = new THREE.Object3D();
-      scene.add(editor.selectionGroup);
+      threeJs.scene.add(editor.selectionGroup);
       
       editor.setMode = function (mode) {
+        editor.windows.concat().forEach(function (win) {win.close()});
         try {
           if(editor.options.renderSky) {
             loadSky(...editor.MAP_DATA.map.skybox);
@@ -280,9 +286,9 @@
           var object_position = new THREE.Vector3();
           object_position.setFromMatrixPosition(e.matrixWorld);
           var position = editor.worldToScreen(object_position);
-          if(position.x+renderer.domElement.getBoundingClientRect().x >= x && position.x <= x+width && position.y+renderer.domElement.getBoundingClientRect().y >= y && position.y+renderer.domElement.getBoundingClientRect().y <= y+height) {
-            raycaster.set(camera.position, new THREE.Vector3().subVectors(object_position, camera.position).normalize());
-            var result = raycaster.intersectObjects(editor.objects);
+          if(position.x+threeJs.renderer.domElement.getBoundingClientRect().x >= x && position.x <= x+width && position.y+threeJs.renderer.domElement.getBoundingClientRect().y >= y && position.y+threeJs.renderer.domElement.getBoundingClientRect().y <= y+height) {
+            threeJs.raycaster.set(threeJs.camera.position, new THREE.Vector3().subVectors(object_position, threeJs.camera.position).normalize());
+            var result = threeJs.raycaster.intersectObjects(editor.objects);
             if(result[0] && result[0].object == e || editor.options.selectionXray) {
               selected.push(e);
             }
@@ -298,20 +304,20 @@
       }
       
       editor.createObject = function (pos, type) {
-        var object = new THREE.Mesh(editor.object_types[type] && editor.object_types[type].geometry || geometry, editor.object_types[type] && editor.object_types[type].material.clone() || new THREE.MeshBasicMaterial({alphaTest: 0.95}));
-        scene.add(object);
+        var object = new THREE.Mesh(editor.object_types[type] && editor.object_types[type].geometry || threeJs.geometry, editor.object_types[type] && editor.object_types[type].material.clone() || new THREE.MeshBasicMaterial({alphaTest: 0.95}));
+        threeJs.scene.add(object);
         pos && object.position.set(pos.x, pos.y, pos.z);
         editor.objects.push(object);
       
-        var selectionMaterial = new THREE.LineBasicMaterial({depthTest: false, side: THREE.BackSide, color: "#ffff00"});
+        var selectionMaterial = new THREE.LineBasicMaterial({depthTest: false, side: THREE.BackSide, color: "#ffff00",transparent:true});
         object.selection = new THREE.LineSegments(new THREE.EdgesGeometry(object.geometry), selectionMaterial);
         object.selection.visible = false;
         object.selection.matrixAutoUpdate = false;
-        scene.add(object.selection);
+        threeJs.scene.add(object.selection);
         
         object.COLLIDABLE = true;
         object.MATERIAL = "concrete";
-        object.TEXTURE = "";
+        object.TEXTURE = "<none>";
         object.INVISIBLE = false;
         object.unHittable = false;
         object.COLOR = "#555555";
@@ -338,23 +344,37 @@
         return true;
       }
       
+      editor.reAddObject = function (obj) {
+        if(editor.objects.indexOf(obj) == -1) {
+          editor.objects.push(obj);
+        }
+        threeJs.scene.add(obj);
+        threeJs.scene.add(obj.selection);
+      }
+      
       editor.createTexture = function (src, name) {
-        if(editor.TEXTURES.find(function (a) {return a.name == name})) {return editor.TEXTURES.find(function (a) {return a.name == "src"})}
+        if(editor.TEXTURES.find(function (a) {return a.name == name})) {return editor.TEXTURES.find(function (a) {return a.name == name})}
         
-        var map = textureLoader.load(src);
+        var map = threeJs.textureLoader.load(src);
         map.src = src;
         map.name = name;
         editor.TEXTURES.push(map);
+        
+        if(src.includes("data:")) {
+          map.SIZE_ = src.length;
+        } else {
+          map.SIZE_ = 0;
+        }
         
         return map;
       }
       
       editor.worldToScreen = function (pos) {
         var vector = new THREE.Vector3(pos.x, pos.y, pos.z);
-        vector.project(camera);
+        vector.project(threeJs.camera);
 
-        var widthHalf = renderer.domElement.clientWidth / 2;
-        var heightHalf = renderer.domElement.clientHeight / 2;
+        var widthHalf = threeJs.renderer.domElement.clientWidth / 2;
+        var heightHalf = threeJs.renderer.domElement.clientHeight / 2;
 
         vector.x = (vector.x * widthHalf) + widthHalf;
         vector.y = - (vector.y * heightHalf) + heightHalf;
@@ -364,6 +384,8 @@
       }
       
       editor.recomputeSelection = function () {
+        //move all selected objects into selectionGroup space
+      
         //reset position
         editor.selectionGroup.position.set(0,0,0);
         editor.selectionGroup.rotation.set(0,0,0);
@@ -373,7 +395,7 @@
         var total = new THREE.Vector3();
 
         editor.selected.forEach(function (object) {
-          total.add(new THREE.Vector3().setFromMatrixPosition(object.matrixWorld));
+          total.add(new THREE.Vector3().setFromMatrixPosition(object.matrix));
         });
         
         //update origin point of selection
@@ -387,6 +409,11 @@
       }
       
       editor.toWorld = function (object) {
+        //move an object back into world space
+        
+        //update matrix world
+        object.updateMatrixWorld();
+      
         //update position
         object.position.setFromMatrixPosition(object.matrixWorld);
         
@@ -400,10 +427,12 @@
       }
       
       editor.select = function (objects) {
+        //select an array of objects
+      
         //remove all objects from selection group
         editor.selected.forEach(function (object) {
-          scene.add(object);
           editor.toWorld(object);
+          threeJs.scene.add(object);
         });
       
         //update selection
@@ -424,10 +453,12 @@
       }
       
       editor.deselect = function (objects) {
+        //deselect an array of objects
+      
         //remove all objects from selection group
         editor.selected.forEach(function (object) {
           editor.toWorld(object);
-          scene.add(object);
+          threeJs.scene.add(object);
         });
         
         //remove deselected objects
@@ -449,27 +480,32 @@
       
       editor.selectionApplyTransforms = function () {
         //apply selection transformations without deselecting
+        
+        //update matrix world of the selection group
+        editor.selectionGroup.updateMatrixWorld();
+        
         //remove all objects from selection group
         editor.selected.forEach(function (object) {
+         // threeJs.scene.add(object);
           editor.toWorld(object);
-          scene.add(object);
-        });
-        
-        //parent all selected objects to selection group
-        editor.selected.forEach(function (object) {
-            editor.selectionGroup.add(object);
         });
         
         //update selection group
         editor.recomputeSelection();
+
+        //parent all selected objects to selection group
+       // editor.selected.forEach(function (object) {
+          //  editor.selectionGroup.add(object);
+        //});
         
+        /*
         //hide tool
         editor.hideTool = true;
         
         setTimeout(function(){
           //remove all objects from selection group
           editor.selected.forEach(function (object) {
-            scene.add(object);
+            threeJs.scene.add(object);
             editor.toWorld(object);
           });
           
@@ -483,35 +519,76 @@
           
           //show tool
           editor.hideTool = false;
-        },30)
+        },30)*/
       }
       
       editor.undoableSelect = function (object) {
+        if(editor.boundObject != undefined) return; //bound editor only - don't run this method!
+        
         var old_selected = editor.selected.concat();
-        new editor.Command(function(){editor.deselect(editor.selected.concat());editor.select(old_selected);/*tool visibility*/editor.hideTool = !editor.selected.length;},function(){editor.select(object);/*tool visibility*/editor.hideTool = !editor.selected.length;});
+        var new_object = object.concat();
+        new editor.Command(function(){editor.deselect(editor.selected.concat());editor.select(old_selected);/*tool visibility*/editor.hideTool = !editor.selected.length;},function(){editor.select(new_object);/*tool visibility*/editor.hideTool = !editor.selected.length;});
       }
       
       editor.undoableDeselect = function (object) {
+        if(editor.boundObject != undefined) return; //bound editor only - don't run this method!
+        
         var old_selected = editor.selected.concat();
-        new editor.Command(function(){editor.select(old_selected);/*tool visibility*/editor.hideTool = !editor.selected.length;},function(){editor.deselect(object.concat());/*tool visibility*/editor.hideTool = !editor.selected.length;});
+        var new_object = object.concat();
+        new editor.Command(function(){editor.select(old_selected);/*tool visibility*/editor.hideTool = !editor.selected.length;},function(){editor.deselect(new_object);/*tool visibility*/editor.hideTool = !editor.selected.length;});
       }
       
       editor.undoableDeleteObject = function (object) {
-        new editor.Command(function(){this.object.forEach(function(object){editor.objects.push(object);scene.add(object);scene.add(object.selection);editor.select([object]);});}, function(){this.object=object.concat();editor.deleteObject(this.object);editor.hideTool = !editor.selected.length});
+        new editor.Command(function(){this.object.forEach(function(object){editor.objects.push(object);threeJs.scene.add(object);threeJs.scene.add(object.selection);editor.select([object]);});}, function(){this.object=object.concat();editor.deleteObject(this.object);editor.hideTool = !editor.selected.length});
       }
       
       editor.undoableAttributechange = function (object, attr, val, refresh) {
-        new editor.Command(function(){var this_=this;eval("object."+attr+"=this_.old");refresh&&editor.setMode(editor.MODE)}, function(){var this_=this;eval("this_.old=object."+attr+";object."+attr+" = val");refresh&&editor.setMode(editor.MODE)});
+        function a(){
+          if(editor.boundObject == undefined) return; //bound editor only stuff
+          editor.validateBounds();
+          editor.updateBoundObject();
+        }
+        new editor.Command(function(){var this_=this;eval("object."+attr+"=this_.old");refresh&&editor.setMode(editor.MODE);a()}, function(){var this_=this;eval("this_.old=object."+attr+";object."+attr+" = val");refresh&&editor.setMode(editor.MODE);a()});
+      }
+      
+      editor.undoableResetBounds = function (new_=[Infinity,-Infinity,Infinity,-Infinity,Infinity,-Infinity]) {
+        new editor.Command(function(){var old = this.old;editor.MAP_DATA.map.boundaries.forEach((a,b)=>(editor.MAP_DATA.map.boundaries[b] = old[b]));editor.updateBoundObject();},function(){this.old=this.old||[...editor.MAP_DATA.map.boundaries];editor.MAP_DATA.map.boundaries[0]=Infinity;editor.MAP_DATA.map.boundaries.forEach((a,b)=>editor.MAP_DATA.map.boundaries[b] = new_[b]);editor.updateBoundObject();});
+      }
+      
+      editor.undoableSetMode = function(mode) {
+        new editor.Command(function(){editor.setMode(this.old)},function(){this.old=this.old||editor.MODE;editor.setMode(mode)});
+      }
+      
+      editor.validateBounds = function() {
+        if(editor.MAP_DATA.map.boundaries[0]<=editor.MAP_DATA.map.boundaries[1]||editor.MAP_DATA.map.boundaries[2]<=editor.MAP_DATA.map.boundaries[3]||editor.MAP_DATA.map.boundaries[4]<=editor.MAP_DATA.map.boundaries[5]) {
+          new editor.Window(400,200,100,90,"WARNING!")
+          .windowContents.innerHTML="<br><br><b>Your map's boundaries are INVALID!</b><br>Please fix them in the bound editor before play-testing! (no MINIMUM BOUNDARY VALUES can be greater than or equal to the MAXIMUM BOUNDARIES VALUES)<br><br><div style='text-align:center'><button onclick=this.parentElement.parentElement.parentElement.outerHTML=`` ><h4>Close - I know what I'm doing</h4></button><button onclick='editor.undoableResetBounds();this.parentElement.parentElement.parentElement.outerHTML=``'><h4>Okay - Reset boundaries</h4></button>";
+        }
+      }
+      
+      editor.updateBoundObject = function() {
+        editor.deselect(editor.selected.concat());
+        editor.boundObject.position.set((editor.MAP_DATA.map.boundaries[0]+editor.MAP_DATA.map.boundaries[1])/2, (editor.MAP_DATA.map.boundaries[2]+editor.MAP_DATA.map.boundaries[3])/2, (editor.MAP_DATA.map.boundaries[4]+editor.MAP_DATA.map.boundaries[5])/2);
+        editor.boundObject.scale.set(editor.MAP_DATA.map.boundaries[0]-editor.MAP_DATA.map.boundaries[1], editor.MAP_DATA.map.boundaries[2]-editor.MAP_DATA.map.boundaries[3], editor.MAP_DATA.map.boundaries[4]-editor.MAP_DATA.map.boundaries[5]);
+        editor.boundObject.rotation.set(0,0,0);
+        editor.select([editor.boundObject]);
+      }
+      
+      editor.round=function(a){return Math.round(a * 10000)/10000}
+      
+      editor.validateTextureName = function(n) {
+        if(editor.TEXTURES.find(a=>a.name == n)){new editor.Window(330,120,200,200,'This texture name is already taken.').windowContents.innerHTML="<br><br>Please try using unique texture names to avoid conflicts.";return false}
+        return true;
       }
       
       editor.updateUI = function () {
         //clean up after bound editor
-        editor.MODE != "bound" && editor.boundObject && editor.deleteObject(editor.boundObject) && delete(editor.boundObject);
+        editor.MODE != "bound" && editor.boundObject && editor.deleteObject(editor.boundObject) && delete(editor.boundObject) && function a(){for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()}}();
         //different modes
         if(editor.MODE == "map") {
           //objects list
           if(document.getElementById("object_list").children.length < editor.objects.length) {
-            document.getElementById("object_list").innerHTML += "<div style='' onclick='if(!event.shiftKey){editor.deselect(editor.selected)};editor.select([this.object]);editor.hideTool = !editor.selected.length;'><div style='margin-left:14%;'><img src='assets/textures/editor/object.png' width=16><a>cube</a></div></div>";
+            document.getElementById("object_list").innerHTML += "<div style='' onclick='var object = this.object;new editor.Command(function(){editor.deselect(editor.selected.concat());editor.select(this.oldselected)},function(){this.oldselected=this.oldselected||editor.selected.concat();if(!event.shiftKey){editor.deselect(editor.selected.concat())};editor.select([object])});editor.hideTool = !editor.selected.length;'><div style='margin-left:14%;'><img src='assets/textures/editor/object.png' width=16><a>cube</a></div></div>";
           }
           if(document.getElementById("object_list").children.length > editor.objects.length) {
             document.getElementById("object_list").children[document.getElementById("object_list").children.length-1].outerHTML = "";
@@ -521,12 +598,20 @@
               return;
             }
             document.getElementById("object_list").children[index].style = object.selection.visible&&"background-color: gray"||"";
-            document.getElementById("object_list").children[index].children[0].children[1].innerText = object.name;
-            document.getElementById("object_list").children[index].contextMenu = true;
+            if(document.getElementById("object_list").children[index].children[0].children[1].innerText != object.name || document.getElementById("object_list").children[index].children[0].children[0].src.split("/").slice(-1) != "object_"+object.type+".png") { //updating time
+              console.log(document.getElementById("object_list").children[index].children[0].children[0].src);
+              document.getElementById("object_list").children[index].children[0].children[0].src = "assets/textures/editor/object_"+object.type+".png";
+              document.getElementById("object_list").children[index].children[0].children[1].innerText = object.name;
+              document.getElementById("object_list").children[index].contextMenu = true;
+            }
             document.getElementById("object_list").children[index].object = object;
           });
           //inspector
           document.getElementsByClassName("UIElement")[1].children[2].style.display = editor.selected.length && "block" || "none";
+          
+          //object type icon
+          var icon = editor.selected.length&&("object_"+(editor.object_types[editor.selected[0].type]?editor.selected[0].type:"unknown")+".png");
+          !(document.getElementsByClassName("UIElement")[1].children[2].children[0].src.split("/").slice(-1) == icon) ? document.getElementsByClassName("UIElement")[1].children[2].children[0].src = ("assets/textures/editor/"+icon) : 0;
           
           //name attribute
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[1]) {
@@ -541,12 +626,12 @@
           }
           if(document.getElementById("texture_list").children.length < editor.TEXTURES.length) {
             document.getElementById("texture_list").innerHTML += "<option value='"+editor.TEXTURES[document.getElementById("texture_list").children.length].name+"'>"+editor.TEXTURES[document.getElementById("texture_list").children.length].name.replace("<","&lt")+"</option>";
-            document.getElementById("texture_list_large").innerHTML += !editor.TEXTURES[document.getElementById("texture_list").children.length-1].fake && "<div style='float: left; text-align: center; max-width: 96px; overflow: hidden'><img src='"+editor.TEXTURES[document.getElementById("texture_list").children.length-1].src+"' width=64 height=64></img><figcaption>"+editor.TEXTURES[document.getElementById("texture_list").children.length-1].name.replace("<","&lt")+"</figcaption></div>" || "";
+            document.getElementById("texture_list_large").innerHTML += !editor.TEXTURES[document.getElementById("texture_list").children.length-1].fake && "<div style='float: left; text-align: center; max-width: 96px; overflow: hidden'><img src='"+editor.TEXTURES[document.getElementById("texture_list").children.length-1].src+"' width=64 height=64></img><figcaption>"+editor.TEXTURES[document.getElementById("texture_list").children.length-1].name.replace("<","&lt")+"<n"+((Math.round(editor.TEXTURES[document.getElementById("texture_list").children.length-1].SIZE_/1000000*100)/100) > 1 ? " style='color:red'> (" : ((Math.round(editor.TEXTURES[document.getElementById("texture_list").children.length-1].SIZE_/1000000*100)/100)==0?" style='color:lime'> (":"> ("))+(Math.round(editor.TEXTURES[document.getElementById("texture_list").children.length-1].SIZE_/1000000*100)/100)+"mb)</n></figcaption></div>" || "";
             for(var i = 0; i < document.getElementById("texture_list_large").children.length; i++) document.getElementById("texture_list_large").children[i].contextMenu = true;
           }
           if(document.getElementById("texture_list").children.length > editor.TEXTURES.length) {
             for(var i = 0; i < document.getElementById("texture_list").children.length; i++) {
-              if(!editor.TEXTURES.find(function(a) {return editor.selected[0] && a.name == document.getElementById("texture_list_large").children[i].children[1].innerHTML})) {
+              if(!editor.TEXTURES.find(function(a) {return a.name == document.getElementById("texture_list_large").children[i].children[1].childNodes[0].textContent})) {
                 break;
               }
             }
@@ -555,64 +640,112 @@
           }
           document.getElementById("texture_list").value = editor.selected[0] && editor.selected[0].TEXTURE || "<none>";
           var texture = editor.TEXTURES.find(function(a) {return editor.selected[0] && a.name == editor.selected[0].TEXTURE}) || editor.TEXTURES[0];
+          //defunct - now handled in main loop
+          /*
           if(!texture.fake && editor.object_types[editor.selected[0].type] && editor.object_types[editor.selected[0].type].textured) {
             editor.selected[0].material.map = texture;
           } else {
             if(editor.selected[0] && editor.selected[0].material.map) editor.selected[0].material.map = undefined;
           }
+          */
           
           //do not continue if no selected object
           if(!editor.selected.length) return;
           
           //position
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[5].children[0]) {
-            editor.selected[0].position.x = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[5].children[0].value) - editor.selectionGroup.position.x + 1 || editor.selected[0].position.x + 1) - 1;
+            var val = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[5].children[0].value));
+            if(!isNaN(val) && val != editor.selected[0].position.x+editor.selectionGroup.position.x) {
+              var delta = (val)-(editor.selected[0].position.x+editor.selectionGroup.position.x)
+              new editor.Command(function(){
+                document.getElementsByClassName("UIElement")[1].children[2].children[5].children[0].blur();
+                editor.selected[0].position.x -= delta;
+                editor.selected.forEach(a=>editor.toWorld(a));
+                editor.recomputeSelection();
+              }, function() {
+                editor.selected[0].position.x += delta;
+                editor.selected.forEach(a=>editor.toWorld(a));
+                editor.recomputeSelection();
+              });
+            }
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[5].children[0].value = editor.selected.length && editor.selected[0].getWorldPosition(new THREE.Vector3).x;
+            document.getElementsByClassName("UIElement")[1].children[2].children[5].children[0].value = editor.selected.length && editor.round(editor.selected[0].getWorldPosition(new THREE.Vector3).x);
           }
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[5].children[1]) {
-            editor.selected[0].position.y = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[5].children[1].value) - editor.selectionGroup.position.y + 1 || editor.selected[0].position.y + 1) - 1;
+            var val = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[5].children[1].value));
+            if(!isNaN(val) && val != editor.selected[0].position.y+editor.selectionGroup.position.y) {
+              var delta = (val)-(editor.selected[0].position.y+editor.selectionGroup.position.y)
+              new editor.Command(function(){
+                document.getElementsByClassName("UIElement")[1].children[2].children[5].children[1].blur();
+                editor.selected[0].position.y -= delta;
+                editor.selected.forEach(a=>editor.toWorld(a));
+                editor.recomputeSelection();
+              }, function() {
+                editor.selected[0].position.y += delta;
+                editor.selected.forEach(a=>editor.toWorld(a));
+                editor.recomputeSelection();
+              });
+            }
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[5].children[1].value = editor.selected.length && editor.selected[0].getWorldPosition(new THREE.Vector3).y;
+            document.getElementsByClassName("UIElement")[1].children[2].children[5].children[1].value = editor.selected.length && editor.round(editor.selected[0].getWorldPosition(new THREE.Vector3).y);
           }
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[5].children[2]) {
-            editor.selected[0].position.z = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[5].children[2].value) - editor.selectionGroup.position.z + 1 || editor.selected[0].position.z + 1) - 1;
+            var val = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[5].children[2].value));
+            if(!isNaN(val) && val != editor.selected[0].position.x+editor.selectionGroup.position.z) {
+              var delta = (val)-(editor.selected[0].position.z+editor.selectionGroup.position.z)
+              new editor.Command(function(){
+                document.getElementsByClassName("UIElement")[1].children[2].children[5].children[2].blur();
+                editor.selected[0].position.z -= delta;
+                editor.selected.forEach(a=>editor.toWorld(a));
+                editor.recomputeSelection();
+              }, function() {
+                editor.selected[0].position.z += delta;
+                editor.selected.forEach(a=>editor.toWorld(a));
+                editor.recomputeSelection();
+              });
+            }
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[5].children[2].value = editor.selected.length && editor.selected[0].getWorldPosition(new THREE.Vector3).z;
+            document.getElementsByClassName("UIElement")[1].children[2].children[5].children[2].value = editor.selected.length && editor.round(editor.selected[0].getWorldPosition(new THREE.Vector3).z);
           }
           
           //rotation
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[7].children[0]) {
-            editor.selected[0].rotation.x = (THREE.MathUtils.degToRad(Number(document.getElementsByClassName("UIElement")[1].children[2].children[7].children[0].value)) - editor.selectionGroup.rotation.x + 1 || editor.selected[0].rotation.x + 1) - 1;
+            var val = THREE.MathUtils.degToRad(Number(document.getElementsByClassName("UIElement")[1].children[2].children[7].children[0].value));
+            if(val != editor.selected[0].rotation.x && !isNaN(val)) editor.undoableAttributechange(editor.selected[0],"rotation.x",val);
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[7].children[0].value = editor.selected.length && THREE.MathUtils.radToDeg(new THREE.Euler().setFromQuaternion(editor.selected[0].getWorldQuaternion(new THREE.Quaternion)).x);
+            document.getElementsByClassName("UIElement")[1].children[2].children[7].children[0].value = editor.selected.length && editor.round(THREE.MathUtils.radToDeg(new THREE.Euler().setFromQuaternion(editor.selected[0].getWorldQuaternion(new THREE.Quaternion)).x));
           }
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[7].children[1]) {
-            editor.selected[0].rotation.y = (THREE.MathUtils.degToRad(Number(document.getElementsByClassName("UIElement")[1].children[2].children[7].children[1].value)) - editor.selectionGroup.rotation.y + 1 || editor.selected[0].rotation.y + 1) - 1;
+            var val = THREE.MathUtils.degToRad(Number(document.getElementsByClassName("UIElement")[1].children[2].children[7].children[1].value));
+            if(val != editor.selected[0].rotation.y && !isNaN(val)) editor.undoableAttributechange(editor.selected[0],"rotation.y",val);
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[7].children[1].value = editor.selected.length && THREE.MathUtils.radToDeg(new THREE.Euler().setFromQuaternion(editor.selected[0].getWorldQuaternion(new THREE.Quaternion)).y);
+            document.getElementsByClassName("UIElement")[1].children[2].children[7].children[1].value = editor.selected.length && editor.round(THREE.MathUtils.radToDeg(new THREE.Euler().setFromQuaternion(editor.selected[0].getWorldQuaternion(new THREE.Quaternion)).y));
           }
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[7].children[2]) {
-            editor.selected[0].rotation.z = (THREE.MathUtils.degToRad(Number(document.getElementsByClassName("UIElement")[1].children[2].children[7].children[2].value)) - editor.selectionGroup.rotation.z + 1 || editor.selected[0].rotation.z + 1) - 1;
+            var val = THREE.MathUtils.degToRad(Number(document.getElementsByClassName("UIElement")[1].children[2].children[7].children[2].value));
+            if(val != editor.selected[0].rotation.z && !isNaN(val)) editor.undoableAttributechange(editor.selected[0],"rotation.z",val);
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[7].children[2].value = editor.selected.length && THREE.MathUtils.radToDeg(new THREE.Euler().setFromQuaternion(editor.selected[0].getWorldQuaternion(new THREE.Quaternion)).z);
+            document.getElementsByClassName("UIElement")[1].children[2].children[7].children[2].value = editor.selected.length && editor.round(THREE.MathUtils.radToDeg(new THREE.Euler().setFromQuaternion(editor.selected[0].getWorldQuaternion(new THREE.Quaternion)).z));
           }
           
           //scale
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[9].children[0]) {
-            editor.selected[0].scale.x = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[9].children[0].value) * editor.selectionGroup.scale.x || editor.selected[0].scale.x);
+            var val = Number(document.getElementsByClassName("UIElement")[1].children[2].children[9].children[0].value)||0.001;
+            if(val != editor.selected[0].scale.x && !isNaN(val)) editor.undoableAttributechange(editor.selected[0],"scale.x",val);
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[9].children[0].value = editor.selected.length && editor.selected[0].getWorldScale(new THREE.Vector3).x;
+            document.getElementsByClassName("UIElement")[1].children[2].children[9].children[0].value = editor.selected.length && editor.round(editor.selected[0].getWorldScale(new THREE.Vector3).x);
           }
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[9].children[1]) {
-            editor.selected[0].scale.y = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[9].children[1].value) * editor.selectionGroup.scale.y || editor.selected[0].scale.y);
+            var val = Number(document.getElementsByClassName("UIElement")[1].children[2].children[9].children[1].value)||0.001;
+            if(val != editor.selected[0].scale.y && !isNaN(val)) editor.undoableAttributechange(editor.selected[0],"scale.y",val);
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[9].children[1].value = editor.selected.length && editor.selected[0].getWorldScale(new THREE.Vector3).y;
+            document.getElementsByClassName("UIElement")[1].children[2].children[9].children[1].value = editor.selected.length && editor.round(editor.selected[0].getWorldScale(new THREE.Vector3).y);
           }
           if (document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[9].children[2]) {
-            editor.selected[0].scale.z = (Number(document.getElementsByClassName("UIElement")[1].children[2].children[9].children[2].value) * editor.selectionGroup.scale.z || editor.selected[0].scale.z);
+            var val = Number(document.getElementsByClassName("UIElement")[1].children[2].children[9].children[2].value)||0.001;
+            if(val != editor.selected[0].scale.z && !isNaN(val)) editor.undoableAttributechange(editor.selected[0],"scale.z",val);
           } else {
-            document.getElementsByClassName("UIElement")[1].children[2].children[9].children[2].value = editor.selected.length && editor.selected[0].getWorldScale(new THREE.Vector3).z;
+            document.getElementsByClassName("UIElement")[1].children[2].children[9].children[2].value = editor.selected.length && editor.round(editor.selected[0].getWorldScale(new THREE.Vector3).z);
           }
           
           //collidable attribute
@@ -640,64 +773,77 @@
           document.getElementsByClassName("UIElement")[1].children[2].children[25].checked = editor.selected[0].unHittable;
           
           //color attribute
+          document.getElementsByClassName("UIElement")[1].children[2].children[27].onchange = function () {
+            editor.__internal_editor_color_object.COLOR = editor.__internal_editor_color_old;
+            editor.undoableAttributechange(editor.__internal_editor_color_object, "COLOR", this.value);
+            delete editor.__internal_editor_color_old;
+            delete editor.__internal_editor_color_object;
+          }
           document.getElementsByClassName("UIElement")[1].children[2].children[27].oninput = function () {
-            editor.undoableAttributechange(editor.selected[0], "COLOR", this.value);
+            editor.__internal_editor_color_old = editor.__internal_editor_color_old || editor.selected[0].COLOR;
+            editor.__internal_editor_color_object = editor.__internal_editor_color_object || editor.selected[0];
+            editor.selected[0].COLOR = this.value;
           }
           document.getElementsByClassName("UIElement")[1].children[2].children[27].value = editor.selected[0].COLOR;
           
           //stretch attribute
-          document.getElementsByClassName("UIElement")[1].children[2].children[15].children[0].oninput = function () {
-            editor.undoableAttributechange(editor.selected[0], "TEXTURE_STRETCH[0]", this.value);
+          if(document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[15].children[0]) {
+            var val = document.getElementsByClassName("UIElement")[1].children[2].children[15].children[0].value;
+            if(!isNaN(val) && val != editor.selected[0].TEXTURE_STRETCH[0]) editor.undoableAttributechange(editor.selected[0], "TEXTURE_STRETCH[0]", Number(val));
+          } else {
+            document.getElementsByClassName("UIElement")[1].children[2].children[15].children[0].value = editor.selected[0].TEXTURE_STRETCH[0];
           }
-          document.getElementsByClassName("UIElement")[1].children[2].children[15].children[0].value = editor.selected[0].TEXTURE_STRETCH[0];
           
-          document.getElementsByClassName("UIElement")[1].children[2].children[15].children[1].oninput = function () {
-            editor.undoableAttributechange(editor.selected[0], "TEXTURE_STRETCH[1]", this.value);
+          if(document.activeElement == document.getElementsByClassName("UIElement")[1].children[2].children[15].children[1]) {
+            var val = document.getElementsByClassName("UIElement")[1].children[2].children[15].children[1].value;
+            if(!isNaN(val) && val != editor.selected[0].TEXTURE_STRETCH[1]) editor.undoableAttributechange(editor.selected[0], "TEXTURE_STRETCH[1]", Number(val));
+          } else {
+            document.getElementsByClassName("UIElement")[1].children[2].children[15].children[1].value = editor.selected[0].TEXTURE_STRETCH[1];
           }
-          document.getElementsByClassName("UIElement")[1].children[2].children[15].children[1].value = editor.selected[0].TEXTURE_STRETCH[1];
         }
         if(editor.MODE == "bound") {
-          //visualization
-          editor.boundObject.scale.set(editor.MAP_DATA.map.boundaries[0]-editor.MAP_DATA.map.boundaries[1], editor.MAP_DATA.map.boundaries[2]-editor.MAP_DATA.map.boundaries[3], editor.MAP_DATA.map.boundaries[4]-editor.MAP_DATA.map.boundaries[5]);
-          editor.boundObject.position.set((editor.MAP_DATA.map.boundaries[0]+editor.MAP_DATA.map.boundaries[1])/2, (editor.MAP_DATA.map.boundaries[2]+editor.MAP_DATA.map.boundaries[3])/2, (editor.MAP_DATA.map.boundaries[4]+editor.MAP_DATA.map.boundaries[5])/2);
           //max values
-          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[2].children[0].children[0]) {
-            var value = Number(document.getElementsByClassName("UIElement")[0].children[2].children[0].children[0].value);
-            value != editor.MAP_DATA.map.boundaries[0] && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[0]", value);
+          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[4].children[3].children[0]) {
+            var value = Number(document.getElementsByClassName("UIElement")[0].children[4].children[3].children[0].value);
+            value != editor.MAP_DATA.map.boundaries[0] && !isNaN(value) && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[0]", value);
           } else {
-            document.getElementsByClassName("UIElement")[0].children[2].children[0].children[0].value = editor.MAP_DATA.map.boundaries[0];
+            document.getElementsByClassName("UIElement")[0].children[4].children[3].children[0].value = editor.MAP_DATA.map.boundaries[0];
           }
-          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[2].children[0].children[1]) {
-            var value = Number(document.getElementsByClassName("UIElement")[0].children[2].children[0].children[1].value);
-            value != editor.MAP_DATA.map.boundaries[2] && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[2]", value);
+          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[4].children[3].children[1]) {
+            var value = Number(document.getElementsByClassName("UIElement")[0].children[4].children[3].children[1].value);
+            value != editor.MAP_DATA.map.boundaries[2] && !isNaN(value) && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[2]", value);
           } else {
-            document.getElementsByClassName("UIElement")[0].children[2].children[0].children[1].value = editor.MAP_DATA.map.boundaries[2];
+            document.getElementsByClassName("UIElement")[0].children[4].children[3].children[1].value = editor.MAP_DATA.map.boundaries[2];
           }
-          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[2].children[0].children[2]) {
-            var value = Number(document.getElementsByClassName("UIElement")[0].children[2].children[0].children[2].value);
-            value != editor.MAP_DATA.map.boundaries[4] && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[4]", value);
+          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[4].children[3].children[2]) {
+            var value = Number(document.getElementsByClassName("UIElement")[0].children[4].children[3].children[2].value);
+            value != editor.MAP_DATA.map.boundaries[4] && !isNaN(value) && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[4]", value);
           } else {
-            document.getElementsByClassName("UIElement")[0].children[2].children[0].children[2].value = editor.MAP_DATA.map.boundaries[4];
+            document.getElementsByClassName("UIElement")[0].children[4].children[3].children[2].value = editor.MAP_DATA.map.boundaries[4];
           }
           //min values
-          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[2].children[2].children[0]) {
-            var value = Number(document.getElementsByClassName("UIElement")[0].children[2].children[2].children[0].value);
-            value != editor.MAP_DATA.map.boundaries[1] && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[1]", value);
+          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[4].children[5].children[0]) {
+            var value = Number(document.getElementsByClassName("UIElement")[0].children[4].children[5].children[0].value);
+            value != editor.MAP_DATA.map.boundaries[1] && !isNaN(value) && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[1]", value);
           } else {
-            document.getElementsByClassName("UIElement")[0].children[2].children[2].children[0].value = editor.MAP_DATA.map.boundaries[1];
+            document.getElementsByClassName("UIElement")[0].children[4].children[5].children[0].value = editor.MAP_DATA.map.boundaries[1];
           }
-          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[2].children[2].children[1]) {
-            var value = Number(document.getElementsByClassName("UIElement")[0].children[2].children[2].children[1].value);
-            value != editor.MAP_DATA.map.boundaries[3] && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[3]", value);
+          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[4].children[5].children[1]) {
+            var value = Number(document.getElementsByClassName("UIElement")[0].children[4].children[5].children[1].value);
+            value != editor.MAP_DATA.map.boundaries[3] && !isNaN(value) && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[3]", value);
           } else {
-            document.getElementsByClassName("UIElement")[0].children[2].children[2].children[1].value = editor.MAP_DATA.map.boundaries[3];
+            document.getElementsByClassName("UIElement")[0].children[4].children[5].children[1].value = editor.MAP_DATA.map.boundaries[3];
           }
-          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[2].children[2].children[2]) {
-            var value = Number(document.getElementsByClassName("UIElement")[0].children[2].children[2].children[2].value);
-            value != editor.MAP_DATA.map.boundaries[5] && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[5]", value);
+          if (document.activeElement == document.getElementsByClassName("UIElement")[0].children[4].children[5].children[2]) {
+            var value = Number(document.getElementsByClassName("UIElement")[0].children[4].children[5].children[2].value);
+            value != editor.MAP_DATA.map.boundaries[5] && !isNaN(value) && editor.undoableAttributechange(editor.MAP_DATA.map, "boundaries[5]", value);
           } else {
-            document.getElementsByClassName("UIElement")[0].children[2].children[2].children[2].value = editor.MAP_DATA.map.boundaries[5];
+            document.getElementsByClassName("UIElement")[0].children[4].children[5].children[2].value = editor.MAP_DATA.map.boundaries[5];
           }
+          //checkbox
+          document.getElementById("bounds_enabled").checked = isFinite(editor.MAP_DATA.map.boundaries[0])&&isFinite(editor.MAP_DATA.map.boundaries[1])&&isFinite(editor.MAP_DATA.map.boundaries[2])&&isFinite(editor.MAP_DATA.map.boundaries[3])&&isFinite(editor.MAP_DATA.map.boundaries[4])&&isFinite(editor.MAP_DATA.map.boundaries[5]);
+          //action
+          document.getElementById("bounds_action").value = editor.MAP_DATA.map.onBoundaryLeave || "Kick from server";
         }
         if(editor.MODE == "skybox") {
           //-X attribute
@@ -707,6 +853,8 @@
               loadSky(...editor.MAP_DATA.map.skybox);
             } catch (e) {}
           }
+          if(document.getElementById("texture_list_1").children.length < editor.TEXTURES.length) document.getElementById("texture_list_1").innerHTML += "<option value='"+editor.TEXTURES[document.getElementById("texture_list_1").children.length].name+"'>"+editor.TEXTURES[document.getElementById("texture_list_1").children.length].name.replace("<","&lt")+"</option>";
+          document.getElementById("texture_list_1").value = editor.MAP_DATA.map.skybox[1]||"<none>";
           //+X attribute
           document.getElementById("texture_list_2").onchange = function () {
             editor.undoableAttributechange(editor.MAP_DATA.map, "skybox[0]", this.value, true);
@@ -714,6 +862,8 @@
               loadSky(...editor.MAP_DATA.map.skybox);
             } catch (e) {}
           }
+          if(document.getElementById("texture_list_2").children.length < editor.TEXTURES.length) document.getElementById("texture_list_2").innerHTML += "<option value='"+editor.TEXTURES[document.getElementById("texture_list_2").children.length].name+"'>"+editor.TEXTURES[document.getElementById("texture_list_2").children.length].name.replace("<","&lt")+"</option>";
+          document.getElementById("texture_list_2").value = editor.MAP_DATA.map.skybox[0]||"<none>";
           //-Y attribute
           document.getElementById("texture_list_3").onchange = function () {
             editor.undoableAttributechange(editor.MAP_DATA.map, "skybox[3]", this.value, true);
@@ -721,6 +871,8 @@
               loadSky(...editor.MAP_DATA.map.skybox);
             } catch (e) {}
           }
+          if(document.getElementById("texture_list_3").children.length < editor.TEXTURES.length) document.getElementById("texture_list_3").innerHTML += "<option value='"+editor.TEXTURES[document.getElementById("texture_list_3").children.length].name+"'>"+editor.TEXTURES[document.getElementById("texture_list_3").children.length].name.replace("<","&lt")+"</option>";
+          document.getElementById("texture_list_3").value = editor.MAP_DATA.map.skybox[3]||"<none>";
           //+Y attribute
           document.getElementById("texture_list_4").onchange = function () {
             editor.undoableAttributechange(editor.MAP_DATA.map, "skybox[2]", this.value, true);
@@ -728,6 +880,8 @@
               loadSky(...editor.MAP_DATA.map.skybox);
             } catch (e) {}
           }
+          if(document.getElementById("texture_list_4").children.length < editor.TEXTURES.length) document.getElementById("texture_list_4").innerHTML += "<option value='"+editor.TEXTURES[document.getElementById("texture_list_4").children.length].name+"'>"+editor.TEXTURES[document.getElementById("texture_list_4").children.length].name.replace("<","&lt")+"</option>";
+          document.getElementById("texture_list_4").value = editor.MAP_DATA.map.skybox[2]||"<none>";
           //-Z attribute
           document.getElementById("texture_list_5").onchange = function () {
             editor.undoableAttributechange(editor.MAP_DATA.map, "skybox[5]", this.value, true);
@@ -735,6 +889,8 @@
               loadSky(...editor.MAP_DATA.map.skybox);
             } catch (e) {}
           }
+          if(document.getElementById("texture_list_5").children.length < editor.TEXTURES.length) document.getElementById("texture_list_5").innerHTML += "<option value='"+editor.TEXTURES[document.getElementById("texture_list_5").children.length].name+"'>"+editor.TEXTURES[document.getElementById("texture_list_5").children.length].name.replace("<","&lt")+"</option>";
+          document.getElementById("texture_list_5").value = editor.MAP_DATA.map.skybox[5]||"<none>";
           //+Z attribute
           document.getElementById("texture_list_6").onchange = function () {
             editor.undoableAttributechange(editor.MAP_DATA.map, "skybox[4]", this.value, true);
@@ -742,6 +898,8 @@
               loadSky(...editor.MAP_DATA.map.skybox);
             } catch (e) {}
           }
+          if(document.getElementById("texture_list_6").children.length < editor.TEXTURES.length) document.getElementById("texture_list_6").innerHTML += "<option value='"+editor.TEXTURES[document.getElementById("texture_list_6").children.length].name+"'>"+editor.TEXTURES[document.getElementById("texture_list_6").children.length].name.replace("<","&lt")+"</option>";
+          document.getElementById("texture_list_6").value = editor.MAP_DATA.map.skybox[4]||"<none>";
         }
         if(editor.MODE == "play") {
           if(document.getElementById("testIframe").contentWindow.ws && document.getElementById("testIframe").contentWindow.ws.readyState == 3) {
@@ -763,7 +921,9 @@
       }
       
       editor.processImage = function(fileList) {
-        return editor.createTexture(URL.createObjectURL(fileList[0]), fileList[0].name.split(".")[0]);
+        var img = editor.createTexture(URL.createObjectURL(fileList[0]), fileList[0].name.split(".")[0]);
+        img.SIZE_ = fileList[0].size;
+        return img;
       }
       
       editor.getFileFromGame = function(type, path, callback, name="image") {
@@ -777,7 +937,9 @@
           e.contentDocument.body.children[0].outerHTML = "";
         }
         function wait() {
-          if(e.contentWindow.location.href.split("/")[e.contentWindow.location.href.split("/").length-1].split(".")[1] == type) {
+          var a = e.contentWindow.location.href.split("/");
+          var b = a[a.length-1].split(".")[1];
+          if(b && b.toLowerCase() == type.toLowerCase()) {
             callback(e.contentWindow.location.href);
             window_.close();
           }
@@ -788,7 +950,7 @@
       
       editor.mainLoop = function () {
         //render world
-        renderer.render(scene, camera);
+        threeJs.renderer.render(threeJs.scene, threeJs.camera);
         
         //CALCULATE DELTA
         editor.delta = (Date.now() - editor.lastUpdate) / 1000;
@@ -797,14 +959,14 @@
         //update tools
         if(editor.currentTool) {
           editor.currentTool.axisList.forEach(function (object) {
-            object.visible = !editor.hideTool;
+            if(!editor.toolActive) object.visible = !!editor.selected[0];
             if(object.darkened) {
               object.darkened = false;
               object.material.color = object.default_color;
             }
           });
-          raycaster.setFromCamera(mouse, camera);
-          var result = raycaster.intersectObjects(editor.currentTool.axisList);
+          threeJs.raycaster.setFromCamera(threeJs.mouse, threeJs.camera);
+          var result = threeJs.raycaster.intersectObjects(editor.currentTool.axisList);
           if(result[0]) {
             if(result[0].object.axis) {
               if(!result[0].object.darkened) {
@@ -814,49 +976,84 @@
             }
           }
           editor.currentTool.origin.position.copy(editor.selectionGroup.position);
-          editor.currentTool.origin.visible = !editor.hideTool;
+          editor.currentTool.origin.visible = !!editor.selected[0];
           editor.currentTool.axisList.forEach(function (object) {
             object.position.copy(editor.selectionGroup.position);
             object.renderOrder = 100;
           });
           editor.currentTool.planes.forEach(function (object) {
             object.position.copy(editor.selectionGroup.position);
+            if(object.alwaysFacing) object.lookAt(threeJs.camera.position);
           });
         }
         editor.tools.list.forEach(function (tool) {
           tool.axisList.forEach(function (object) {
-            object.scale.set(object.position.distanceTo(camera.position)/10, object.position.distanceTo(camera.position)/10, object.position.distanceTo(camera.position)/10);
+            object.scale.set(object.position.distanceTo(threeJs.camera.position)/10, object.position.distanceTo(threeJs.camera.position)/10, object.position.distanceTo(threeJs.camera.position)/10);
           });
         });
         
         //update UI
         editor.updateUI();
         
-        //update editor
-        FirstPersonControls.update(editor.delta);
-        if(renderer.domElement.parentElement) {
-          camera.aspect = renderer.domElement.parentElement.clientWidth / renderer.domElement.parentElement.clientHeight;
-          renderer.setSize(renderer.domElement.parentElement.clientWidth, renderer.domElement.parentElement.clientHeight);
+        //update camera
+        threeJs.FirstPersonControls.update(editor.delta);
+        if(threeJs.renderer.domElement.parentElement) {
+          threeJs.camera.aspect = threeJs.renderer.domElement.parentElement.clientWidth / threeJs.renderer.domElement.parentElement.clientHeight;
+          threeJs.renderer.setSize(threeJs.renderer.domElement.parentElement.clientWidth, threeJs.renderer.domElement.parentElement.clientHeight);
         }
+        threeJs.camera.updateProjectionMatrix();
+        threeJs.camera.updateMatrixWorld();
+        
+        //update objects
         editor.objects.forEach(function (object) {
+          //if there is a drawn texture   then if     either  drawn texture is missing  and                      real texture does exist                               or                     not missing and wrong                         otherwise    true if there is a real texture and no drawn texture
+          if(      object.material.map     ?         (!object.material.map.name          &&   !!editor.TEXTURES.find(function(a) {return a.name == object.TEXTURE})) || object.material.map.name && (object.material.map.name != object.TEXTURE) : object.TEXTURE != "<none>" && !object.material.map) {
+            object.material.map = editor.TEXTURES.find(function(a) {return a.name == object.TEXTURE});
+            object.material.map&&object.material.map.fake ? object.material.map = undefined : 0;
+            console.log("Set new drawn texture");
+          }
+          
+          if((!object.material.map && object.TEXTURE != "<none>") || (!editor.TEXTURES.find(function(a) {return a.name == object.TEXTURE}) && object.material.map.name)) { //missing texture if no texture
+            object.material.map = threeJs.defaultMaterial.map;
+            console.log("Defaulted drawn texture to missing");
+          }
+            
+          if(object.material.map && !object.material.map.cloned && object.material.map.image) { //clone texture if not already cloned (to make texture stretch work correctly)
+            object.material.map = object.material.map.clone();
+            object.material.map.needsUpdate = true;
+            object.material.map.cloned = true;
+            console.log("Cloned texture for object",object.material.map);
+          }
           object.selection.matrix.copy(object.matrixWorld);
           object.material.needsUpdate = true;
-          object.material.alphaTest = !object.INVISIBLE && (editor.object_types[object.type] && editor.object_types[object.type].materialalphaTest || 0.95);
-          object.material.transparent = object.INVISIBLE;
-          object.material.opacity = editor.options.renderInvisible && (object.INVISIBLE && 0.5 || 1) || (object.INVISIBLE && 0.0001 || 1);
-          object.material.transparent = object.INVISIBLE;
+          object.material.transparent = editor.object_types[object.type].material.transparent ? true : object.INVISIBLE;
+          object.material.alphaTest = object.INVISIBLE ? editor.options.renderInvisible ? false : editor.object_types[object.type].material.alphaTest : editor.object_types[object.type].material.alphaTest;
+          object.material.opacity = editor.options.renderInvisible && (object.INVISIBLE && 0.5 || editor.object_types[object.type].material.opacity) || (object.INVISIBLE ? 0 : editor.object_types[object.type].material.opacity);
           editor.object_types[object.type] && editor.object_types[object.type].textured && object.material.color.set(object.COLOR);
           if(object.material.map) {
-            object.material.map.needsUpdate = true;
+            //object.material.map.needsUpdate = true;
+            var oldx = object.material.map.repeat.x;
+            var oldy = object.material.map.repeat.y;
             object.material.map.repeat.x = object.TEXTURE_STRETCH[0];
             object.material.map.repeat.y = object.TEXTURE_STRETCH[1];
             object.material.map.wrapS=object.material.map.wrapT=THREE.RepeatWrapping;
-            object.material.map.needsUpdate = true;
+            if(oldx != object.TEXTURE_STRETCH[0] || oldy != object.TEXTURE_STRETCH[1]) {
+              object.material.map.needsUpdate = true;
+              console.log("Texture update: dy"+(object.TEXTURE_STRETCH[1]-oldy)+" dx"+(object.TEXTURE_STRETCH[0]-oldx));
+            }
           }
         });
-        camera.updateProjectionMatrix();
-        camera.updateMatrixWorld();
-        requestAnimationFrame(editor.mainLoop);
+        
+        //loop
+        requestAnimationFrame(function(){
+          try {
+            editor.mainLoop();
+          } catch (e) {
+            var win = new editor.Window(400,250,100,100,"Error in render loop");
+  win.windowContents.innerHTML="<br><br>An error has occured in the render loop:<div style='height:130px;overflow-y:scroll;max-width:390px;margin-left:5px;line-break:anywhere;border:solid black 1px'>"+e.stack.replaceAll("\n","<br>").replaceAll("  ","&nbsp;&nbsp;")+"</div>The editor is no longer functional and needs to be restarted.<br><i>To avoid losing data, save the current map, then reload the editor."
+            throw e;
+          }
+        });
       }
       
       //tool class
@@ -869,9 +1066,10 @@
       editor.tools.classes.Tool = class {
         constructor() {
           this.type = "Tool";
-          this.origin = new THREE.Sprite(new THREE.SpriteMaterial({map: textureLoader.load("assets/textures/editor/tool_select.png"), sizeAttenuation: false, opacity: 14, depthTest: false}));
+          this.origin = new THREE.Sprite(new THREE.SpriteMaterial({map: threeJs.textureLoader.load("assets/textures/editor/tool_select.png"), sizeAttenuation: false, opacity: 14, depthTest: false}));
+          this.origin.renderOrder = 9999;
           this.origin.scale.set(0.025, 0.025, 0.025);
-          scene.add(this.origin);
+          threeJs.scene.add(this.origin);
           this.axes = 3;
           this.axisList = [];
           this.planes = [];
@@ -884,18 +1082,19 @@
             var plane = new THREE.Mesh(new THREE.BoxGeometry(100000, 100000, 0.1));
             plane.visible = false;
             this.planes.push(plane);
-            scene.add(plane);
-            plane.rotation.set(THREE.MathUtils.degToRad(this.planeConfiguration[i][0]), THREE.MathUtils.degToRad(this.planeConfiguration[i][1]), THREE.MathUtils.degToRad(this.planeConfiguration[i][2]));
-            loader.load("assets/models/editor/tools/"+this.type+"/"+i+".glb", function (gltf) {
-              _this.axisList.push(gltf.scene.children[0]);
+            threeJs.scene.add(plane);
+            this.planeConfiguration[i] == "always-facing" ? plane.alwaysFacing = true : plane.rotation.set(THREE.MathUtils.degToRad(this.planeConfiguration[i][0]), THREE.MathUtils.degToRad(this.planeConfiguration[i][1]), THREE.MathUtils.degToRad(this.planeConfiguration[i][2]));
+            threeJs.loader.load("assets/models/editor/tools/"+this.type+"/"+i+".glb", function (gltf) {
+              _this.axisList[i] = (gltf.scene.children[0]);
               gltf.scene.children[0].material.depthTest = 0;
               gltf.scene.children[0].material.depthWrite = 0;
               gltf.scene.children[0].axis = i+1;
               gltf.scene.children[0].default_color = gltf.scene.children[0].material.color.clone();
               gltf.scene.children[0].dark_color = gltf.scene.children[0].material.color.clone().lerp(new THREE.Color("#000"), .2);
               gltf.scene.children[0].visible = false;
+              gltf.scene.children[0].material.transparent = true;
               _this.origin.visible = false;
-              scene.add(gltf.scene.children[0]);
+              threeJs.scene.add(gltf.scene.children[0]);
             });
           }
         }
@@ -914,8 +1113,8 @@
           }
         }
         raycastPlane(axis) {
-          raycaster.setFromCamera(mouse, camera);
-          var result = raycaster.intersectObject(this.planes[axis]);
+          threeJs.raycaster.setFromCamera(threeJs.mouse, threeJs.camera);
+          var result = threeJs.raycaster.intersectObject(this.planes[axis]);
           return result[0];
         }
         onmousedown(axis) {
@@ -935,12 +1134,18 @@
           switch (axis) {
             case 0:
               this.offset = this.raycastPlane(axis).point.x-editor.selectionGroup.position.x;
+              this.axisList[1].visible = false;
+              this.axisList[2].visible = false;
               break;
             case 1:
               this.offset = this.raycastPlane(axis).point.y-editor.selectionGroup.position.y;
+              this.axisList[0].visible = false;
+              this.axisList[2].visible = false;
               break;
             case 2:
               this.offset = this.raycastPlane(axis).point.z-editor.selectionGroup.position.z;
+              this.axisList[1].visible = false;
+              this.axisList[0].visible = false;
               break;
           }
         }
@@ -965,16 +1170,22 @@
           this.type = "RotateTool";
           this.planeConfiguration = [[0, 90, 0], [90, 0, 0], [0, 0, 0]];
         }
-        onmousedown(axis) {
+        onmousedown(axis,event) {
           switch (axis) {
             case 0:
-              this.offset = editor.selectionGroup.rotation.x;
+              this.offset = Math.atan2(editor.selectionGroup.position.z-this.raycastPlane(axis).point.z, editor.selectionGroup.position.y-this.raycastPlane(axis).point.y);
+              this.axisList[1].visible = false;
+              this.axisList[2].visible = false;
               break;
             case 1:
-              this.offset = editor.selectionGroup.rotation.y;
+              this.offset = Math.atan2(editor.selectionGroup.position.x-this.raycastPlane(axis).point.x, editor.selectionGroup.position.z-this.raycastPlane(axis).point.z);
+              this.axisList[0].visible = false;
+              this.axisList[2].visible = false;
               break;
             case 2:
-              this.offset = editor.selectionGroup.rotation.z;
+              this.offset = -Math.atan2(editor.selectionGroup.position.x-this.raycastPlane(axis).point.x, editor.selectionGroup.position.y-this.raycastPlane(axis).point.y);
+              this.axisList[1].visible = false;
+              this.axisList[0].visible = false;
               break;
           }
         }
@@ -1002,12 +1213,18 @@
           switch (axis) {
             case 0:
               this.offset = this.raycastPlane(axis).point.x-editor.selectionGroup.position.x;
+              this.axisList[1].visible = false;
+              this.axisList[2].visible = false;
               break;
             case 1:
               this.offset = this.raycastPlane(axis).point.y-editor.selectionGroup.position.y;
+              this.axisList[0].visible = false;
+              this.axisList[2].visible = false;
               break;
             case 2:
               this.offset = this.raycastPlane(axis).point.z-editor.selectionGroup.position.z;
+              this.axisList[1].visible = false;
+              this.axisList[0].visible = false;
               break;
           }
         }
@@ -1112,7 +1329,7 @@
           }
         }
         close() {
-          this.window.outerHTML = "";
+          this.window.parentElement ? this.window.outerHTML = "" : 0;
           editor.windows.splice(editor.windows.indexOf(this), 1);
         }
       }
@@ -1152,7 +1369,8 @@
       //saving and loading
       editor.SAVE = function(mode) {
         editor.MAP_DATA.map.objects = [];
-        editor.deselect(editor.selected.concat());
+        editor.undoableDeselect(editor.selected.concat());
+        editor.toolActive = false;
         (typeof mode == "object" && mode || editor.objects).forEach(function(object) {
           !(editor.object_types[object.type] && editor.object_types[object.type].unsavable) && editor.MAP_DATA.map.objects.push({position: {x: object.position.x, y: object.position.y, z: object.position.z}, rotation:{x: THREE.MathUtils.radToDeg(object.rotation.x), y: THREE.MathUtils.radToDeg(object.rotation.y), z: THREE.MathUtils.radToDeg(object.rotation.z)}, scale: {x: object.scale.x, y: object.scale.y, z: object.scale.z}, collidable: object.COLLIDABLE, material: object.MATERIAL, texture: object.TEXTURE != "<none>" && object.TEXTURE || "", invisible: object.INVISIBLE, unHittable: object.unHittable, color: object.COLOR, texture_stretch: object.TEXTURE_STRETCH.concat(), name: object.name, type: object.type});
         });
@@ -1193,11 +1411,12 @@
         return editor.MAP_DATA;
       }
       editor.LOAD = async function(contents, mode) {
-        editor.TEXTURES.forEach(function (texture) {
+        editor.TEXTURES.concat().forEach(function (texture,i) {
           if(texture.fake || mode == 5) return;
           delete editor.MAP_DATA.assets[texture.name];
           editor.TEXTURES.splice(editor.TEXTURES.indexOf(texture), 1);
         });
+        editor.setMode(editor.MODE);
         var data = editor.MAP_DATA.map;
         switch (mode) {
           case 1:
@@ -1244,10 +1463,12 @@
             Object.keys(editor.MAP_DATA.assets).forEach(function (texture) {
               editor.createTexture(editor.MAP_DATA.assets[texture], texture);
             });
+            continueLoad();
             break;
           case 5:
             //paste
             editor.MAP_DATA.map.objects = contents;
+            continueLoad();
             break;
         }
         function continueLoad() {
@@ -1259,19 +1480,27 @@
             editor.history.commands.concat().forEach(function(command) {
                 command.remove()
             });
+            //and skybox
             resetSky();
             try {
+              data.skybox.forEach(function(sky){
+                editor.textureChecks(sky, finish);
+                editor.MAP_DATA.assets[sky] && finish();
+                function finish(path) {
+                  editor.createTexture(path+sky+(sky.includes(".png")?"":".png"),sky);
+                }
+              });
               editor.options.renderSky && loadSky(...data.skybox);
             } catch (e) {}
           }
-          //loop through all map objects and skybox
+          //loop through all map objects
           editor.MAP_DATA.map.objects.forEach(function(object) {
             var obj = editor.createObject(object.position, object.type);
             obj.rotation.set(THREE.MathUtils.degToRad(object.rotation.x), THREE.MathUtils.degToRad(object.rotation.y), THREE.MathUtils.degToRad(object.rotation.z));
             obj.scale.set(object.scale.x, object.scale.y, object.scale.z);
             obj.COLLIDABLE = object.collidable;
             obj.MATERIAL = object.material;
-            obj.TEXTURE = object.texture;
+            obj.TEXTURE = object.texture||"<none>";
             obj.INVISIBLE = object.invisible;
             obj.unHittable = object.unHittable;
             obj.COLOR = object.color || "#ffffff";
@@ -1286,7 +1515,6 @@
             }
           });
         }
-        continueLoad();
       }
       
       //UI functions
@@ -1297,7 +1525,12 @@
           document.getElementById("fileName").focus();
           return;
         } else {
-          editor.SAVE(1);
+          try {
+            editor.SAVE(1);
+          } catch (e) {
+            var confirm = new editor.Window(300, 150, 525, 220, "Out of storage!");
+            confirm.windowContents.innerHTML = "<br><br>Your browser is stopping the PIXELARENA map editor from saving your map, because the amount of storage allocated to "+location.hostname+" is too full to fit your map. <br> Would you like to export your map as a file instead? <button onclick=editor.SAVE(2) >Export</button>";
+          }
         }
       }
       editor.triggerOpen = function() {
@@ -1310,13 +1543,15 @@
       }
       editor.triggerCopy = function() {
         var objects = editor.selected.concat();
-        editor.deselect(objects);
-        editor.hideTool = true;
         navigator.clipboard.writeText(JSON.stringify(editor.SAVE(objects).map.objects));
       }
-      editor.triggerHelp = function() {
-        var help = new editor.Window(550, 400, 505, 200, "Help");
-        help.windowContents.innerHTML = "<br><h4>Pixel Arena Map Editor help</h4><b>Shortcuts</b><br>Ctrl a - select all<br>Ctrl s - save<br>Ctrl o - open<br>Ctrl n - new<br>Ctrl c - copy<br>Ctrl v - paste<br>Ctrl z - undo<br>Ctrl y - redo<br><br><b>Editors</b><br>Map editor - transform and edit map's obects<br>Bound editor - edit map's boundaries, if a player ends up outside of these boundaries, the anticheat will kick them<br>Skybox editor - configure the map's skybox<br>Play test - run the game with your map";
+      editor.triggerHelp1 = function() {
+        var help = new editor.Window(550, 585, innerWidth/3, innerHeight/8, "Help");
+        help.windowContents.innerHTML = "<br><h4>Pixel Arena Map Editor quick reference</h4><b>Shortcuts</b><br>Ctrl a - select all<br>Ctrl s - save<br>Ctrl o - open<br>Ctrl n - new<br>Ctrl c - copy<br>Ctrl v - paste<br>Ctrl z - undo<br>Ctrl y - redo<br>Delete - delete selected object(s)<br>F1 - open this window (help)<br><br><b>Editors</b><br>Map editor - transform and edit the map's objects<br>Bound editor - edit map's boundaries, if a player ends up outside of these boundaries, depending on what the 'Action' dropdown is set to the anticheat will kick them, they will be killed, or they will be teleported back.<br>Skybox editor - configure the map's skybox<br>Play test - run the game with your map<br><br><b>How to...</b><br>Create an object - Edit menu at the top -> Create new <i>[object type]</i> object.<br>Export - File menu at the top -> Export.<br>Add a texture - Click the + in the Map Editor tab's Imported Textures pane.<br>Play test - Click 'Launch' on the window in the Play test tab.<br><br><b>Object types</b><br>Box - a generic cuboid shape.<br>Spawn - an invisible by default object where the players will spawn. If you have multiple spawns, the game will choose one at random every time.<br><br>";
+      }
+      editor.triggerHelp2 = function() {
+        var help = new editor.Window(550, 585, innerWidth/3, innerHeight/8, "Help");
+        help.windowContents.innerHTML = "<br><h4>Pixel Arena Map Editor basics</h4><b>Moving the camera</b><br>- Hold right click and move your mouse to look around<br>- Use the scroll wheel to zoom<br>- Use WASD to move in 3D<br>- Use R and F to move up and down.<br><br><b>Navigating the UI</b><br>- Each tab (Map Editor, Bound Editor, Skybox Editor, Play test) offers its own map-making features.<br>- Each menu (File, Edit, View, Help) contains options for convenience. This window can be opened again from the Help menu.<br>- Windows can be dragged around and closed. Try clicking the X when you are done reading this!<br><br><b>Manipulating objects</b><br>- Objects can be selected by either:<br>&nbsp;A) clicking on them in 3D,<br>&nbsp;B) clicking on them from the Objects pane,<br>&nbsp;C) or pressing ctrl+A (to select all.)<br> - You can also select additional objects to by holding shift.<br> - The properties of the first object you select can be modified from the Inspector pane.<br> - Tools can be used (on the top right) to move around, rotate, and scale your selected objects in 3D.<br><br><b>Further help</b><br>Scared of closing this window? Don't worry, it can be opened up again at Help -> The basics. You can also see the quick reference help page - it contains more information about specific shortcuts and what each tab is responsible for.";
       }
       editor.triggerDelete = function(map, confirm) {
         if(confirm) {
@@ -1342,14 +1577,14 @@
       }
       
       //events
-      renderer.domElement.addEventListener("wheel", function (event) {
-        camera.position.add(new THREE.Vector3(0, 0, event.deltaY/200).applyQuaternion(camera.quaternion));
+      threeJs.renderer.domElement.addEventListener("wheel", function (event) {
+        threeJs.camera.position.add(new THREE.Vector3(0, 0, event.deltaY/100).applyQuaternion(threeJs.camera.quaternion));
       });
-      renderer.domElement.addEventListener("mousedown", function (event) {
+      threeJs.renderer.domElement.addEventListener("mousedown", function (event) {
         if(event.button == 0) {
           //individual object selection and tools
-          raycaster.setFromCamera(mouse, camera);
-          var result = raycaster.intersectObjects(editor.currentTool && editor.objects.concat(editor.currentTool.axisList) || editor.objects);
+          threeJs.raycaster.setFromCamera(threeJs.mouse, threeJs.camera);
+          var result = threeJs.raycaster.intersectObjects((!!editor.selected[0]&&editor.currentTool) && editor.objects.concat(editor.currentTool.axisList) || editor.objects);
           var target = false;
           result.forEach(function (raycastResult) {
             if(raycastResult.object.axis && target && !target.axis) {
@@ -1372,7 +1607,7 @@
               }
             } else {
               //hit a tool axis
-              editor.currentTool.onmousedown(target.axis-1);
+              editor.currentTool.onmousedown(target.axis-1,event);
               editor.toolActive = target.axis;
               editor.currentTool.oldPosition = editor.selectionGroup.position.clone();
               editor.currentTool.oldRotation = editor.selectionGroup.rotation.clone();
@@ -1392,26 +1627,50 @@
           editor.hideTool = !editor.selected.length;
         }
       });
-      renderer.domElement.addEventListener("mousemove", function (event) {
+      threeJs.renderer.domElement.addEventListener("mousemove", function (event) {
         if(event.button == 0 && editor.rectangularSelectionActive) editor.resizeRectangularSelection(event.x, event.y);
-        mouse.set(((event.clientX - renderer.domElement.getBoundingClientRect().x) / renderer.domElement.clientWidth)*2 - 1, -((event.clientY - renderer.domElement.getBoundingClientRect().y) / renderer.domElement.clientHeight)*2 + 1);
-        if(editor.toolActive) editor.currentTool.onmousemove(editor.toolActive-1, event, mouse)
+        threeJs.mouse.set(((event.clientX - threeJs.renderer.domElement.getBoundingClientRect().x) / threeJs.renderer.domElement.clientWidth)*2 - 1, -((event.clientY - threeJs.renderer.domElement.getBoundingClientRect().y) / threeJs.renderer.domElement.clientHeight)*2 + 1);
+        if(editor.toolActive) editor.currentTool.onmousemove(editor.toolActive-1, event, threeJs.mouse)
       });
-      renderer.domElement.addEventListener("mouseup", function (event) {
+      threeJs.renderer.domElement.addEventListener("mouseup", function (event) {
         if(event.button == 0) {
           editor.processRectangularSelection(event.shiftKey);
           editor.rectangularSelectionActive = false;
           if(editor.toolActive) {
-            //undo-redo command
+            //undo-redo command prep
             editor.currentTool.offsetPosition = editor.selectionGroup.position.clone().sub(editor.currentTool.oldPosition);
             editor.currentTool.offsetRotation = new THREE.Euler(editor.selectionGroup.rotation.x-editor.currentTool.oldRotation.x, editor.selectionGroup.rotation.y-editor.currentTool.oldRotation.y, editor.selectionGroup.rotation.z-editor.currentTool.oldRotation.z);
             editor.currentTool.offsetScale = editor.selectionGroup.scale.clone();
-            new editor.Command(function(){editor.selectionGroup.position.sub(this.offsetPosition);editor.selectionGroup.rotation.x-=this.offsetRotation.x;editor.selectionGroup.rotation.y-=this.offsetRotation.y;editor.selectionGroup.rotation.z-=this.offsetRotation.z;editor.selectionGroup.scale.divide(this.offsetScale);setTimeout(editor.selectionApplyTransforms,20);}, function(){if(this.offsetPosition){editor.selectionGroup.position.add(this.offsetPosition);editor.selectionGroup.rotation.x+=this.offsetRotation.x;editor.selectionGroup.rotation.y+=this.offsetRotation.y;editor.selectionGroup.rotation.z+=this.offsetRotation.z;editor.selectionGroup.scale.multiply(this.offsetScale);setTimeout(editor.selectionApplyTransforms,20);};this.offsetPosition = this.offsetPosition || editor.currentTool.offsetPosition;this.offsetRotation = this.offsetRotation || editor.currentTool.offsetRotation;this.offsetScale = this.offsetScale || editor.currentTool.offsetScale;});
+            
             //apply
             editor.selectionApplyTransforms();
+            
+            //for bound editor
+            var b0 = editor.selectionGroup.position.x + editor.selected[0].scale.x/2;
+            var b1 = editor.selectionGroup.position.x - editor.selected[0].scale.x/2;
+            var b2 = editor.selectionGroup.position.y + editor.selected[0].scale.y/2;
+            var b3 = editor.selectionGroup.position.y - editor.selected[0].scale.y/2;
+            var b4 = editor.selectionGroup.position.z + editor.selected[0].scale.z/2;
+            var b5 = editor.selectionGroup.position.z - editor.selected[0].scale.z/2;
+            var old_b0 = editor.MAP_DATA.map.boundaries[0];
+            var old_b1 = editor.MAP_DATA.map.boundaries[1];
+            var old_b2 = editor.MAP_DATA.map.boundaries[2];
+            var old_b3 = editor.MAP_DATA.map.boundaries[3];
+            var old_b4 = editor.MAP_DATA.map.boundaries[4];
+            var old_b5 = editor.MAP_DATA.map.boundaries[5];
+            
+            //undo-redo command
+            new editor.Command(function(){editor.selectionGroup.position.sub(this.offsetPosition);editor.selectionGroup.rotation.x-=this.offsetRotation.x;editor.selectionGroup.rotation.y-=this.offsetRotation.y;editor.selectionGroup.rotation.z-=this.offsetRotation.z;editor.selectionGroup.scale.divide(this.offsetScale);editor.selectionApplyTransforms(20);if(editor.MODE == "bound") {editor.MAP_DATA.map.boundaries[0] = old_b0;editor.MAP_DATA.map.boundaries[1] = old_b1;editor.MAP_DATA.map.boundaries[2] = old_b2;editor.MAP_DATA.map.boundaries[3] = old_b3;editor.MAP_DATA.map.boundaries[4] = old_b4;editor.MAP_DATA.map.boundaries[5] = old_b5;}}, function(){if(this.offsetPosition){editor.selectionGroup.position.add(this.offsetPosition);editor.selectionGroup.rotation.x+=this.offsetRotation.x;editor.selectionGroup.rotation.y+=this.offsetRotation.y;editor.selectionGroup.rotation.z+=this.offsetRotation.z;editor.selectionGroup.scale.multiply(this.offsetScale);editor.selectionApplyTransforms();};this.offsetPosition = this.offsetPosition || editor.currentTool.offsetPosition;this.offsetRotation = this.offsetRotation || editor.currentTool.offsetRotation;this.offsetScale = this.offsetScale || editor.currentTool.offsetScale;if(editor.MODE == "bound") {editor.MAP_DATA.map.boundaries[0] = b0;editor.MAP_DATA.map.boundaries[1] = b1;editor.MAP_DATA.map.boundaries[2] = b2;editor.MAP_DATA.map.boundaries[3] = b3;editor.MAP_DATA.map.boundaries[4] = b4;editor.MAP_DATA.map.boundaries[5] = b5}});
+            
+            //for bound editor again
+            editor.validateBounds();
           }
           editor.toolActive = false;
         }
+      });
+      threeJs.renderer.domElement.addEventListener("mouseleave", function (event) {
+        //for intuitiveness
+        threeJs.renderer.domElement.dispatchEvent(new MouseEvent("mouseup"));
       });
       document.addEventListener("click", function (event) {
         //context menu
@@ -1426,7 +1685,7 @@
       document.addEventListener("contextmenu", function (event) {
         //context menu
         event.preventDefault();
-        if (!event.target.contextMenu && !event.target.parentElement.contextMenu) return;
+        if (!event.target.contextMenu && !event.target.parentElement.contextMenu && !event.target.parentElement.parentElement.contextMenu) return;
         document.getElementsByClassName("contextmenu")[0].target = event.target;
         document.getElementsByClassName("contextmenu")[0].style.display = "block";
         document.getElementsByClassName("contextmenu")[0].style.left = event.pageX;
@@ -1434,7 +1693,7 @@
       });
       document.addEventListener("keydown", function (event) {
         //CTRL A
-        if(event.ctrlKey && event.keyCode == 65) {
+        if(event.ctrlKey && event.keyCode == 65 && event.target.tagName != "INPUT") {
           editor.undoableSelect(editor.objects);
           event.preventDefault();
           //tool visibility
@@ -1479,27 +1738,33 @@
         //f1
         if(event.keyCode == 112) {
           event.preventDefault();
-          editor.triggerHelp();
+          editor.triggerHelp1();
         }
       });
       document.addEventListener("paste", function (event) {
-        if(event.target.tagName != "INPUT") {
+        if(event.target.tagName != "INPUT" && (Date.now()-(editor.lastPaste||1)) > 150&&editor.MODE != "bound") {
           event.preventDefault();
+          editor.lastPaste = Date.now(); //as we need a delay of about 100ms, we need to limit how often we can paste to prevent adverse effects (also for performance)
           try {
             //attempt to paste
             var data = event.clipboardData.getData("text");
             new editor.Command(function() {
               editor.deleteObject(this.objects);
               editor.hideTool = false;
+              editor.deselect(editor.selected.concat());
+              editor.select(this.oldselected);
             }, function() {
-              var old_objects = editor.objects.concat();
-              editor.LOAD(JSON.parse(data), 5);
+              this.old_objects = this.old_objects || editor.objects.concat();
+              !this.objects && editor.LOAD(JSON.parse(data), 5);
               var this_ = this;
               setTimeout(function(){
-                this_.objects = editor.objects.filter(n => !old_objects.includes(n));
+                this_.objects = this_.objects || editor.objects.filter(n => !this_.old_objects.includes(n));
+                this_.objects.forEach(a=>editor.reAddObject(a));
+                this_.oldselected = this_.oldselected || editor.selected.concat();
+                editor.deselect(editor.selected.concat());
                 editor.select(this_.objects);
                 editor.hideTool = false;
-              }, 100);
+              }, 100*!this.objects);
             });
           } catch (e) {}
         }
@@ -1509,35 +1774,39 @@
       editor.initialize = function () {
         //prepare all UI tabs
         for(var i = 0; i < document.getElementsByClassName("tab").length; i++) {
-          document.getElementsByClassName("tab")[i].onclick = function(){editor.setMode(this.id.split('_')[1])};
+          document.getElementsByClassName("tab")[i].onclick = function(){if(this.id.split('_')[1]=="bound"){editor.undoableDeselect(editor.selected.concat())};editor.undoableSetMode(this.id.split('_')[1])};
         }
         
         //define modes
         editor.MODES.map = function (o) {
-          editor.windows.forEach(function (win) {win.close()});
-          o.innerHTML += "<div class='UIelement' style='position: absolute; left: 0; height: 60%; width: 16%; overflow-y: scroll'><div style='margin-left: 7%'>Objects</div><hr><div id=object_list></div></div><div class='UIelement' style='position: absolute; right: 0; height: 92%; width: 20%; overflow-y: scroll'><div style='margin-left: 7%'>Inspector</div><hr><div style='margin-left: 5%'><img src='assets/textures/editor/object.png' width=16> Name: <input placeholder='object'></input><hr style='margin-left: -5%'>Transform<br><br>Position <a style='margin-left: 13%'>X <input style='width:10%'></input> Y <input style='width:10%'></input> Z <input style='width:10%'></input></a><br>Rotation <a style='margin-left: 13%'>X <input style='width:10%'></input> Y <input style='width:10%'></input> Z <input style='width:10%'></input></a><br>Scale <a style='margin-left: 18.75%'>X <input style='width:10%'></input> Y <input style='width:10%'></input> Z <input style='width:10%'></input></a><hr>Texture<br><br>Texture <select id=texture_list style='margin-left: 10%'></select><br>Stretch <a style='margin-left:13%'>X <input style='width:10%'>Y <input style='width:10%'></a><hr>Attributes<br><br>Collidable <input type='checkbox' style='margin-left: 10%'><br>Material <select style='margin-left: 11%'><option value='concrete'>concrete</option><option value='wood'>wood</option></select><br>Invisible <input type='checkbox' style='margin-left: 12.5%'><br>Unhittable <input type='checkbox' style='margin-left: 7.75%'><br>Color <input type='color' style='margin-left: 19%'></div></div><div class='UIElement' style='position: absolute; left: 0; bottom: 0; height: 32.5%; width: 79.85%; overflow-y: scroll'><div id=texture_list_large></div><button style='width: 5%; position: absolute; right: 0' class='dropdown' name='texture'><h1>+</h1></button></div><div class='UIElement' style='position: absolute; top: 75px; left: 17%'><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[0].select()'><img src='assets/textures/editor/move_tool.png' width=32 height=32 style=margin-left:-4px></button><br><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[1].select()'><img src='assets/textures/editor/rotate_tool.png' width=32 height=32 style=margin-left:-4px></button><br><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[2].select()'><img src='assets/textures/editor/scale_tool.png' width=32 height=32 style=margin-left:-4px></button></div>";
-          o.appendChild(renderer.domElement);
+          o.innerHTML += "<div class='UIelement' style='position: absolute; left: 0; height: 60%; width: 16%; overflow-y: scroll'><div style='margin-left: 7%'>Objects</div><hr><div id=object_list></div></div><div class='UIelement' style='position: absolute; right: 0; height: 92%; width: 20%; overflow-y: scroll'><div style='margin-left: 7%'>Inspector</div><hr><div style='margin-left: 5%'><img src='assets/textures/editor/object.png' width=16> Name: <input placeholder='object'></input><hr style='margin-left: -5%'>Transform<br><br>Position <a style='margin-left: 13%'>X <input style='width:10%'></input> Y <input style='width:10%'></input> Z <input style='width:10%'></input></a><br>Rotation <a style='margin-left: 13%'>X <input style='width:10%'></input> Y <input style='width:10%'></input> Z <input style='width:10%'></input></a><br>Scale <a style='margin-left: 18.75%'>X <input style='width:10%'></input> Y <input style='width:10%'></input> Z <input style='width:10%'></input></a><hr>Texture<br><br>Texture <select id=texture_list style='margin-left: 10%'></select><br>Stretch <a style='margin-left:13%'>X <input style='width:10%'>Y <input style='width:10%'></a><hr>Attributes<br><br>Collidable <input type='checkbox' style='margin-left: 10%'><br>Material <select style='margin-left: 11%'><option value='concrete'>concrete</option><option value='wood'>wood</option><option value='metal_target'>metal_target</option></select><br>Invisible <input type='checkbox' style='margin-left: 12.5%'><br>Unhittable <input type='checkbox' style='margin-left: 7.75%'><br>Color <input type='color' style='margin-left: 19%'></div></div><div class='UIElement' style='position: absolute; left: 0; bottom: 0; height: 32.5%; width: 79.85%; overflow-y: scroll'><div style='margin-left: 1%'>Imported Textures</div><hr><div id=texture_list_large></div><button style='width: 5%; position: absolute; right: 0' class='dropdown' name='texture' ondblclick=document.getElementById('dropdown.texture').children[0].click() ><h1>+</h1></button></div><div class='UIElement' style='position: absolute; top: 75px; left: 17%'><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[0].select()'><img src='assets/textures/editor/move_tool.png' width=32 height=32 style=margin-left:-4px></button><br><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[1].select()'><img src='assets/textures/editor/rotate_tool.png' width=32 height=32 style=margin-left:-4px></button><br><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[2].select()'><img src='assets/textures/editor/scale_tool.png' width=32 height=32 style=margin-left:-4px></button><br><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.currentTool=null'><img src='assets/textures/editor/null_tool.png' width=32 height=32 style=margin-left:-4px></button></div>";
+          o.appendChild(threeJs.renderer.domElement);
         }
         editor.MODES.bound = function (o) {
-          editor.windows.forEach(function (win) {win.close()});
-          o.innerHTML += "<div class='UIelement' style='position: absolute; left: 0; height: 100%; width: 20%; overflow-y: scroll'><div style='margin-left: 7%'>Boundary editor</div><hr><div style='margin-left: 5%'>Max values <a style='margin-left: 3%'>X <input style='width:10%'> Y <input style='width:10%'> Z <input style='width:10%'></input></a><br>Min values <a style='margin-left: 5.5%'>X <input style='width:10%'> Y <input style='width:10%'> Z <input style='width:10%'></input></a><br><br>Enabled <input type='checkbox' id='bounds_enabled' onclick='if(editor.MAP_DATA.map.boundaries[0]!=Infinity){editor.MAP_DATA.map.boundaries=[Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity]}else{editor.MAP_DATA.map.boundaries=[50, -50, 25, -25, 50, -50]}'></input></div></div>";
-          document.getElementById("bounds_enabled").checked = isFinite(editor.MAP_DATA.map.boundaries[0]);
+          o.innerHTML += "<div class='UIelement' style='position: absolute; left: 0; height: 100%; width: 20%; overflow-y: scroll'><div style='margin-left: 7%'>Boundary editor<br></div><hr><div style='margin-left: 7%;max-width:80%'><i>When a map boundary is set, any player who leaves those confines will be either killed, teleported back, or kicked, depending on the \"Action\" dropdown.</i></div><hr><div style='margin-left: 5%'>Action <a style='margin-left: 3%'><select id='bounds_action' style='width:30%' onchange='editor.undoableAttributechange(editor.MAP_DATA.map,`onBoundaryLeave`,this.value)'><option>Kick from server</option><option>Kill</option><option>Teleport back</option></select></a><br><br>Max values <a style='margin-left: 3%'>X <input style='width:10%'> Y <input style='width:10%'> Z <input style='width:10%'></input></a><br>Min values <a style='margin-left: 5.5%'>X <input style='width:10%'> Y <input style='width:10%'> Z <input style='width:10%'></input></a><br><br>Enabled <input type='checkbox' id='bounds_enabled' onclick='if(editor.MAP_DATA.map.boundaries[0]!=Infinity&&editor.MAP_DATA.map.boundaries[1]!=Infinity&&editor.MAP_DATA.map.boundaries[2]!=Infinity&&editor.MAP_DATA.map.boundaries[3]!=Infinity&&editor.MAP_DATA.map.boundaries[4]!=Infinity&&editor.MAP_DATA.map.boundaries[5]!=Infinity){editor.undoableResetBounds([Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity])}else{editor.undoableResetBounds([50, -50, 25, -25, 50, -50])}'></input></div></div><div class='UIElement' style='position: absolute; top: 75px; left: 21%'><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[0].select()'><img src='assets/textures/editor/move_tool.png' width=32 height=32 style=margin-left:-4px></button><br><button onclick='for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};editor.tools.list[2].select()'><img src='assets/textures/editor/scale_tool.png' width=32 height=32 style=margin-left:-4px></button></div>";
           editor.boundObject && editor.deleteObject(editor.boundObject) && delete(editor.boundObject);
           editor.boundObject = editor.createObject({x:0,y:0,z:0}, "bound_visualization");
-          editor.boundObject.INVISIBLE = true;
+          //editor.boundObject.INVISIBLE = true;
           for(var i = 0; i < editor.tools.list.length; i++){editor.tools.list[i].deselect()};
-          o.appendChild(renderer.domElement);
+          o.appendChild(threeJs.renderer.domElement);
+          editor.tools.list[0].select();
+          editor.deselect(editor.selected.concat());
+          editor.select([editor.boundObject]);
+          editor.boundObject.scale.set(editor.MAP_DATA.map.boundaries[0]-editor.MAP_DATA.map.boundaries[1], editor.MAP_DATA.map.boundaries[2]-editor.MAP_DATA.map.boundaries[3], editor.MAP_DATA.map.boundaries[4]-editor.MAP_DATA.map.boundaries[5]);
+          editor.boundObject.position.set(0,0,0);
+          editor.boundObject.rotation.set(0,0,0);
+          console.log("Selected the bound object");
+          editor.selectionGroup.position.set((editor.MAP_DATA.map.boundaries[0]+editor.MAP_DATA.map.boundaries[1])/2, (editor.MAP_DATA.map.boundaries[2]+editor.MAP_DATA.map.boundaries[3])/2, (editor.MAP_DATA.map.boundaries[4]+editor.MAP_DATA.map.boundaries[5])/2);
         }
         editor.MODES.skybox = function (o) {
-          editor.windows.forEach(function (win) {win.close()});
-          o.innerHTML += "<div class='UIelement' style='position: absolute; right: 0; height: 30%; width: 22%; overflow-y: scroll'><div style='margin-left: 7%'>Skybox editor</div><hr><div style='margin-left: 5%'>Negative X <input style='width:50%' id=texture_list_1 style='margin-left: 10%'></input><button style='margin-right: 1px' onclick='var this_ = this;editor.getFileFromGame(`png`, `assets/textures`, function(e){this_.previousSibling.value=e.split(`assets/textures/`)[1];this_.previousSibling.onchange.call(this_.previousSibling)}, `image`)'>browse</button><br>Positive X <input style='width:50%' id=texture_list_2 style='margin-left: 10%'></input><button style='margin-right: 1px' onclick='var this_ = this;editor.getFileFromGame(`png`, `assets/textures`, function(e){this_.previousSibling.value=e.split(`assets/textures/`)[1];this_.previousSibling.onchange.call(this_.previousSibling)}, `image`)'>browse</button><br>Negative Y <input style='width:50%' id=texture_list_3 style='margin-left: 10%'></input><button style='margin-right: 1px' onclick='var this_ = this;editor.getFileFromGame(`png`, `assets/textures`, function(e){this_.previousSibling.value=e.split(`assets/textures/`)[1];this_.previousSibling.onchange.call(this_.previousSibling)}, `image`)'>browse</button><br>Positive Y <input style='width:50%' id=texture_list_4 style='margin-left: 10%'></input><button style='margin-right: 1px' onclick='var this_ = this;editor.getFileFromGame(`png`, `assets/textures`, function(e){this_.previousSibling.value=e.split(`assets/textures/`)[1];this_.previousSibling.onchange.call(this_.previousSibling)}, `image`)'>browse</button><br>Negative Z <input style='width:50%' id=texture_list_5 style='margin-left: 10%'></input><button style='margin-right: 1px' onclick='var this_ = this;editor.getFileFromGame(`png`, `assets/textures`, function(e){this_.previousSibling.value=e.split(`assets/textures/`)[1];this_.previousSibling.onchange.call(this_.previousSibling)}, `image`)'>browse</button><br>Positive Z <input style='width:50%' id=texture_list_6 style='margin-left: 10%'></input><button style='margin-right: 1px' onclick='var this_ = this;editor.getFileFromGame(`png`, `assets/textures`, function(e){this_.previousSibling.value=e.split(`assets/textures/`)[1];this_.previousSibling.onchange.call(this_.previousSibling)}, `image`)'>browse</button></div></div>";
+          o.innerHTML += "<div class='UIelement' style='position: absolute; right: 0; height: 100%; width: 22%; overflow-y: scroll'><div style='margin-left: 7%'>Skybox editor</div><hr><div style='margin-left: 5%'>Negative X <select style='width:50%' id=texture_list_1 style='margin-left: 10%'></select><br>Positive X <select style='width:50%' id=texture_list_2 style='margin-left: 10%'></select><br>Negative Y <select style='width:50%' id=texture_list_3 style='margin-left: 10%'></select><br>Positive Y <select style='width:50%' id=texture_list_4 style='margin-left: 10%'></select><br>Negative Z <select style='width:50%' id=texture_list_5 style='margin-left: 10%'></select><br>Positive Z <select style='width:50%' id=texture_list_6 style='margin-left: 10%'></select></div><hr><div style=\"margin-left: 7%;max-width:80%\"><i>First remember to import all of the skybox textures you need in the Map editor tab. The textures must be square and must all be the same size, and the skybox must be complete (every value set) to be valid.</i></div></div>";
           document.getElementById("texture_list_1").value = editor.MAP_DATA.map.skybox[1] || "<none>";
           document.getElementById("texture_list_2").value = editor.MAP_DATA.map.skybox[0] || "<none>";
           document.getElementById("texture_list_3").value = editor.MAP_DATA.map.skybox[3] || "<none>";
           document.getElementById("texture_list_4").value = editor.MAP_DATA.map.skybox[2] || "<none>";
           document.getElementById("texture_list_5").value = editor.MAP_DATA.map.skybox[5] || "<none>";
           document.getElementById("texture_list_6").value = editor.MAP_DATA.map.skybox[4] || "<none>";
-          o.appendChild(renderer.domElement);
+          o.appendChild(threeJs.renderer.domElement);
           try {
             loadSky(...editor.MAP_DATA.map.skybox);
           } catch (e) {
@@ -1545,15 +1814,17 @@
           }
         }
         editor.MODES.play = function (o) {
-          editor.windows.forEach(function (win) {win.close()});
           o.innerHTML += "<iframe src='about:blank' style='width: 100%; height: 100%; border: none; overflow: hidden;' id='testIframe'></iframe>";
           setTimeout(function(){document.getElementById("testIframe").contentDocument.body.style.overflow = "hidden"; document.getElementById("testIframe").contentDocument.body.style.backgroundColor = "#686868"; document.getElementById("testIframe").contentDocument.body.innerHTML = "<div style='text-align: center;'><br><br><br><br><br><br><br><br><img src='assets/textures/editor/disconnect.png' width=500 height=375 draggable=false></img></div>"},200);
-          var start = new editor.Window(350, 150, 525, 100, "Integrated server");
-          start.windowContents.innerHTML = "<br><br><br><div style='margin-left: 30%'>Console window <input type=checkbox checked id='console_enabled'></div><br><button onclick='document.getElementById(`testIframe`).src = `index.html?integrated_server=true&server_copy_client_map=true&noconsole=`+!document.getElementById(`console_enabled`).checked; document.getElementById(`testIframe`).onload=function(){document.getElementById(`testIframe`).contentWindow.loadMap(JSON.stringify(editor.SAVE(3).map, function (k,v){if(v==-Infinity){return `-Infinity`};if(v==Infinity){return `Infinity`};return v}))}; this.parentElement.parentElement.children[0].children[0].click();' style='margin-left: 30%; height: 32px;'><h4 style='margin-top: 8px;'>start integrated server</h4></button>";
+          var start = new editor.Window(350, 150, 525, 100, "Launch game client + integrated server");
+          start.windowContents.innerHTML = "<br><br><br><div style='margin-left: 20%'>Server console window <input type=checkbox checked id='console_enabled'></div><br><button onclick='document.getElementById(`testIframe`).src = `index.html?integrated_server=true&server_copy_client_map=true&custom_client_map=true&noconsole=`+!document.getElementById(`console_enabled`).checked; document.getElementById(`testIframe`).onload=function(){console.log(1);document.getElementById(`testIframe`).contentWindow.loadMap(JSON.stringify(editor.SAVE(3).map, function (k,v){if(v==-Infinity){return `-Infinity`};if(v==Infinity){return `Infinity`};return v}))}; this.parentElement.parentElement.children[0].children[0].click();' style='margin-left: 39%; height: 32px;'><h4 style='margin-top: 8px;'>Launch</h4></button>";
         }
         
         //set mode to map
         editor.setMode("map");
+        
+        //open basics window
+        editor.triggerHelp2();
         
         //prepare tools
         editor.hideTool = true;
