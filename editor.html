@@ -223,7 +223,7 @@
       threeJs.scene.add(editor.selectionGroup);
       
       editor.setMode = function (mode) {
-        editor.__skyboxold && editor.__skyboxold.forEach(function(a,b){
+        editor.__skyboxold && editor.__skyboxold.forEach(function(a,b){ //lamest patch of the land
           editor.MAP_DATA.map.skybox[b] = a;
         });
         delete editor.__skyboxold;
