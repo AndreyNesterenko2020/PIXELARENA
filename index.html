@@ -278,7 +278,7 @@
 </html>
 <script>
   //version
-  const version = "1.0.0_beta2";
+  const version = "1.0.0_beta2 dev";
 
   //settings
   const settings = {
@@ -769,7 +769,7 @@
       } else {
         players[state.me].collision.shapes[0].halfExtents.y = 0.7;
         state.player_height = 1.4;
-        players[state.me].updateCollision();
+        //players[state.me].updateCollision();
         threeJs.PointerLock.unlock();
         try {
           threeJs.camera.lookAt(players[state.killer].character.position.x, players[state.killer].character.position.y, players[state.killer].character.position.z);
@@ -788,6 +788,7 @@
       if(players[state.me].collision.shapes[0].halfExtents.y == 0.7 && !state.dead) {
         players[state.me].collision.shapes[0].halfExtents.y = 2;
       };
+      players[state.me].hitbox_size.y = state.player_height;
       players[state.me].updateCollision();
  
       //head rotation
@@ -1284,8 +1285,10 @@
         player.character.position.set(data.x, data.y, data.z);
       }
       player.position.set(data.x, data.y, data.z);
-      player.hitbox_size.y = data.hitbox_height;
-      player.updateCollision();
+      if(player.id != state.me) {
+        player.hitbox_size.y = data.hitbox_height;
+        player.updateCollision();
+      }
     }
     ws.onopen = function () {
       if(!localStorage.joins) localStorage.joins = "0";

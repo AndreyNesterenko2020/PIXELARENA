@@ -53,13 +53,17 @@ function parseConfig(content) {// result[section][value]
         //console.log("Appended "+character+" to key");
       }
       if(inValue) {
+        var justSet = false;
         if(stringQuotes == "-1" && character != " " && !(character == "\"" || character == "'")) { //if we see a non-space, non-quote chracter begin we know its a string-less value
           stringQuotes = "";
+          justSet = true;
         }
         if(stringQuotes == "-1" && (character == "\"" || character == "'")) { //if we see a " or ' its a stringed value
           stringQuotes = character;
+          justSet = true;
         }
         if(character == stringQuotes) {
+          if(!justSet) stop = true;
           return;
         }
         if(stringQuotes == "-1") return;

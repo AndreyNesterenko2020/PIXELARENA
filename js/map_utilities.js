@@ -67,8 +67,9 @@ function defineUtilities() {
         throw new Error;
       }
       let a = new Image(16,16);
+      a.src = arguments[i];
       var arguments_ = arguments;
-      (globalThis['editor'] || globalThis).textureChecks(arguments[i],function(res){
+      !a.src.startsWith("blob")&&!a.src.startsWith("data")&&(globalThis['editor'] || globalThis).textureChecks(arguments[i],function(res){
         a.src=/*"assets/textures/"*/res+arguments_[i]+(arguments_[i].includes(".png")?"":".png");
       });
       textures.push(a);

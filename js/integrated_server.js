@@ -82,6 +82,12 @@ onmessage = function (data) {
     });
   }
   if(JSON.parse(data.data).loadMap) {
-    loadMap(JSON.parse(data.data).loadMap)
+    if(globalThis.map_name) {
+      console.warn("loaded");
+      loadMap(JSON.parse(data.data).loadMap)
+    } else {
+      console.warn("wait");
+      setTimeout(a=>onmessage(data),100);
+    }
   }
 }
